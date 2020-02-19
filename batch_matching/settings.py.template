@@ -1,0 +1,7 @@
+#Database creds
+pg_host = "localhost"
+pg_db = ""
+pg_user = ""
+
+#Threshold
+min_score = 80

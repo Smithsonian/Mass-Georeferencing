@@ -1,0 +1,4 @@
+*.Rd
+settings.R
+*.Rproj*
+logs
