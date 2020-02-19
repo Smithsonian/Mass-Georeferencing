@@ -399,60 +399,60 @@ for sciname in scinames:
                                                 insert_list_scores)
                     logger1.debug(cur.query)
         #Geonames
-        query_template = """
-                    WITH data AS (
-                        SELECT uid, name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
-                        UNION
-                        SELECT uid, unnest(string_to_array(alternatenames, ',')) as name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
-                        )
-                    SELECT uid, name, stateprovince, source FROM data GROUP BY uid, name, stateprovince, source
-                        """
-        cur.execute(query_template, {'countrycode': record['countrycode']})
-        allcandidates = pd.DataFrame(cur.fetchall())
-        logger1.info("No. of Geonames candidates: {}".format(len(allcandidates)))
-        if len(allcandidates) > 0:
-            #Iterate each record
-            for index, record in records_g.iterrows():
-                candidates = allcandidates.copy()
-                candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                ##################
-                #Execute matches
-                ##################
-                #locality
-                candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
-                candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['name']), axis = 1)
-                candidates = candidates[(candidates.score1 + candidates.score2) > (settings.min_score * 2)]
-                #ADJUST SCORE HERE, IF NEEDED
-                #
-                #Batch insert
-                candidates['recgroup_id'] = record['recgroup_id']
-                insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
-                insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
-                insert_list = insert_list.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
-                                            (candidate_id, recgroup_id, data_source, feature_id, no_features) 
-                                        VALUES 
-                                            (%s, %s, %s, %s, 1)""", 
-                                            insert_list)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score1']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'locality', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score2']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'stateprovince', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
+        # query_template = """
+        #             WITH data AS (
+        #                 SELECT uid, name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
+        #                 UNION
+        #                 SELECT uid, unnest(string_to_array(alternatenames, ',')) as name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
+        #                 )
+        #             SELECT uid, name, stateprovince, source FROM data GROUP BY uid, name, stateprovince, source
+        #                 """
+        # cur.execute(query_template, {'countrycode': record['countrycode']})
+        # allcandidates = pd.DataFrame(cur.fetchall())
+        # logger1.info("No. of Geonames candidates: {}".format(len(allcandidates)))
+        # if len(allcandidates) > 0:
+        #     #Iterate each record
+        #     for index, record in records_g.iterrows():
+        #         candidates = allcandidates.copy()
+        #         candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
+        #         ##################
+        #         #Execute matches
+        #         ##################
+        #         #locality
+        #         candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
+        #         candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['name']), axis = 1)
+        #         candidates = candidates[(candidates.score1 + candidates.score2) > (settings.min_score * 2)]
+        #         #ADJUST SCORE HERE, IF NEEDED
+        #         #
+        #         #Batch insert
+        #         candidates['recgroup_id'] = record['recgroup_id']
+        #         insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
+        #         insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
+        #         insert_list = insert_list.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
+        #                                     (candidate_id, recgroup_id, data_source, feature_id, no_features) 
+        #                                 VALUES 
+        #                                     (%s, %s, %s, %s, 1)""", 
+        #                                     insert_list)
+        #         logger1.debug(cur.query)
+        #         insert_list_scores = candidates[['candidate_id', 'score1']].copy()
+        #         insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+        #         insert_list_scores = insert_list_scores.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+        #                                     (candidate_id, score_type, score) 
+        #                                 VALUES 
+        #                                     (%s, 'locality', %s)""", 
+        #                                     insert_list_scores)
+        #         logger1.debug(cur.query)
+        #         insert_list_scores = candidates[['candidate_id', 'score2']].copy()
+        #         insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+        #         insert_list_scores = insert_list_scores.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+        #                                     (candidate_id, score_type, score) 
+        #                                 VALUES 
+        #                                     (%s, 'stateprovince', %s)""", 
+        #                                     insert_list_scores)
+        #         logger1.debug(cur.query)
         #GNIS
         if record['countrycode'] == 'US':
             query_template = "SELECT uid, feature_name as name, gadm2 as stateprovince, 'gnis' as source FROM gnis WHERE state_alpha ILIKE '%{}%'"
@@ -506,53 +506,53 @@ for sciname in scinames:
         #GNS - Not US
         if record['countrycode'] != 'US':
             query_template = "SELECT uid, full_name_nd_ro as name, gadm2 as stateprovince, 'gns' as source FROM gns WHERE cc1 = %(countrycode)s"
-        cur.execute(query_template, {'countrycode': record['countrycode']})
-        logger1.debug(cur.query)
-        allcandidates = pd.DataFrame(cur.fetchall())
-        logger1.info("No. of GNS candidates: {}".format(len(allcandidates)))
-        if len(allcandidates) > 0:
-            #Iterate each record
-            for index, record in records_g.iterrows():
-                candidates = allcandidates.copy()
-                candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                ##################
-                #Execute matches
-                ##################
-                #locality
-                candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
-                candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['name']), axis = 1)
-                candidates = candidates[(candidates.score1 + candidates.score2) > (settings.min_score * 2)]
-                #ADJUST SCORE HERE, IF NEEDED
-                #
-                #Batch insert
-                candidates['recgroup_id'] = record['recgroup_id']
-                insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
-                insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
-                insert_list = insert_list.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
-                                            (candidate_id, recgroup_id, data_source, feature_id, no_features) 
-                                        VALUES 
-                                            (%s, %s, %s, %s, 1)""", 
-                                            insert_list)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score1']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'locality', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score2']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'stateprovince', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
+            cur.execute(query_template, {'countrycode': record['countrycode']})
+            logger1.debug(cur.query)
+            allcandidates = pd.DataFrame(cur.fetchall())
+            logger1.info("No. of GNS candidates: {}".format(len(allcandidates)))
+            if len(allcandidates) > 0:
+                #Iterate each record
+                for index, record in records_g.iterrows():
+                    candidates = allcandidates.copy()
+                    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
+                    ##################
+                    #Execute matches
+                    ##################
+                    #locality
+                    candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
+                    candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['name']), axis = 1)
+                    candidates = candidates[(candidates.score1 + candidates.score2) > (settings.min_score * 2)]
+                    #ADJUST SCORE HERE, IF NEEDED
+                    #
+                    #Batch insert
+                    candidates['recgroup_id'] = record['recgroup_id']
+                    insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
+                    insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
+                    insert_list = insert_list.values.tolist()
+                    psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
+                                                (candidate_id, recgroup_id, data_source, feature_id, no_features) 
+                                            VALUES 
+                                                (%s, %s, %s, %s, 1)""", 
+                                                insert_list)
+                    logger1.debug(cur.query)
+                    insert_list_scores = candidates[['candidate_id', 'score1']].copy()
+                    insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+                    insert_list_scores = insert_list_scores.values.tolist()
+                    psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+                                                (candidate_id, score_type, score) 
+                                            VALUES 
+                                                (%s, 'locality', %s)""", 
+                                                insert_list_scores)
+                    logger1.debug(cur.query)
+                    insert_list_scores = candidates[['candidate_id', 'score2']].copy()
+                    insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+                    insert_list_scores = insert_list_scores.values.tolist()
+                    psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+                                                (candidate_id, score_type, score) 
+                                            VALUES 
+                                                (%s, 'stateprovince', %s)""", 
+                                                insert_list_scores)
+                    logger1.debug(cur.query)
         #Lakes
         if pycountry.countries.get(alpha_2 = record['countrycode']) != None:
             query_template = "SELECT uid, lake_name as name, gadm2 as stateprovince, 'global_lakes' as source FROM global_lakes WHERE country ILIKE '%{country}%'"
