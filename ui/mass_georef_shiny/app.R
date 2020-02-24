@@ -79,7 +79,8 @@ ui <- fluidPage(
                             div(uiOutput("candidate_matches_info_h"), style = "font-size:80%")
                      ),
                      column(width = 6,
-                            div(uiOutput("marker_info"), style = "font-size:80%")
+                            div(uiOutput("marker_info"), style = "font-size:80%"),
+                            div(DT::dataTableOutput("candidatescores"), style = "font-size:80%")
                      )
                    )
             )
@@ -296,7 +297,7 @@ server <- function(input, output, session) {
       records <- session$userData$records
       this_row <- records[input$records_rows_selected,]
 
-      records_query <- paste0("SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE mg_occurrenceid IN (SELECT mg_occurrenceid FROM mg_records WHERE recgroup_id = '", this_row$recgroup_id, "'::uuid)")
+      records_query <- paste0("SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE mg_occurrenceid IN (SELECT mg_occurrenceid FROM mg_recordgroups WHERE recgroup_id = '", this_row$recgroup_id, "'::uuid)")
       print(records_query)
 
       records <- dbGetQuery(db, records_query)
@@ -324,6 +325,8 @@ server <- function(input, output, session) {
     h3("Candidate Matches:")
   })
   
+  
+  
   #candidatematches----
   output$candidatematches <- DT::renderDataTable({
     
@@ -340,7 +343,7 @@ server <- function(input, output, session) {
       this_row <- records[input$records_rows_selected,]
 
       recgroup_id <- this_row$recgroup_id
-      
+      print(recgroup_id)
       candidates_query <- paste0("
                         WITH score AS (
                             SELECT 
@@ -367,7 +370,9 @@ server <- function(input, output, session) {
                                   m.stateprovince || ', ' || m.countrycode as located_at,
                                   null as type,
                                   decimallongitude as longitude,
-                                  decimallatitude as latitude
+                                  decimallatitude as latitude,
+                                  m.gbifid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gbif m
@@ -385,7 +390,9 @@ server <- function(input, output, session) {
                                   m.name_0 as located_at,
                                   m.engtype_1 as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gadm1 m
@@ -402,7 +409,9 @@ server <- function(input, output, session) {
                                   m.name_1 || ', ' || m.name_0 as located_at,
                                   m.engtype_2 as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gadm2 m
@@ -419,7 +428,9 @@ server <- function(input, output, session) {
                                   m.name_1 || ', ' || m.name_0 as located_at,
                                   m.engtype_3 as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gadm3 m
@@ -436,7 +447,9 @@ server <- function(input, output, session) {
                                   m.name_1 || ', ' || m.name_0 as located_at,
                                   m.engtype_4 as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gadm4 m
@@ -453,7 +466,9 @@ server <- function(input, output, session) {
                                   m.name_1 || ', ' || m.name_0 as located_at,
                                   m.engtype_5 as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                                  
                                   gadm5 m
@@ -470,7 +485,9 @@ server <- function(input, output, session) {
                                   m.gadm2 as located_at,
                                   m.desig_eng as type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                               
                                   wdpa_polygons m
@@ -487,7 +504,9 @@ server <- function(input, output, session) {
                                   m.gadm2 as located_at,
                                   m.desig_eng as type,
                                   st_x(m.the_geom)::numeric as longitude,
-                                  st_y(m.the_geom)::numeric as latitude
+                                  st_y(m.the_geom)::numeric as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                               
                                   wdpa_points m
@@ -504,7 +523,9 @@ server <- function(input, output, session) {
                                   m.gadm2 as located_at,
                                   m.type,
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
-                                  round(st_y(m.centroid)::numeric, 5) as latitude
+                                  round(st_y(m.centroid)::numeric, 5) as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                               
                                   global_lakes m
@@ -521,7 +542,9 @@ server <- function(input, output, session) {
                                   m.gadm2 as located_at,
                                   null as type,
                                   long::numeric as longitude,
-                                  lat::numeric as latitude
+                                  lat::numeric as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                               
                                   gns m
@@ -538,7 +561,9 @@ server <- function(input, output, session) {
                                   m.gadm2 as located_at,
                                   m.feature_class as type,
                                   prim_long_dec::numeric as longitude,
-                                  prim_lat_dec::numeric as latitude
+                                  prim_lat_dec::numeric as latitude,
+                                  m.uid::text as feature_id,
+                                  s.candidate_id
                                 FROM 
                                   score s,                               
                                   gnis m
@@ -588,6 +613,10 @@ server <- function(input, output, session) {
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-pushpin pull-right\" aria-hidden=\"true\" title = \"Locality from Geonames\"></span>")
            }else if (results$data_source[i] == "global_lakes"){
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-tint pull-right\" aria-hidden=\"true\" title = \"Locality from Global Lakes\"></span>")
+           }else if (results$data_source[i] == "gnis"){
+             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-pushpin pull-right\" aria-hidden=\"true\" title = \"Locality from GNIS\"></span>")
+           }else if (results$data_source[i] == "gns"){
+             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-pushpin pull-right\" aria-hidden=\"true\" title = \"Locality from GNS\"></span>")
            }
          }
          
@@ -664,6 +693,36 @@ server <- function(input, output, session) {
      }
   })
 
+  
+  #candidatescores----
+  output$candidatescores <- DT::renderDataTable({
+    req(input$candidatematches_rows_selected)
+    #req(input$map_click == FALSE)
+    results <- session$userData$results
+    
+    candidate_info <- paste0("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '", results[input$candidatematches_rows_selected,]$candidate_id, "'::uuid")
+    cat(candidate_info)
+    candidate_scores <- dbGetQuery(db, candidate_info)
+    
+    names(candidate_scores) <- c("Match Type", "Score")
+    
+    DT::datatable(candidate_scores,
+                  escape = FALSE,
+                  options = list(searching = FALSE,
+                                 ordering = TRUE,
+                                 pageLength = 10,
+                                 paging = FALSE
+                  ),
+                  rownames = FALSE,
+                  selection = list(mode = 'none'),
+                  caption = "Scores for this candidate location") %>% 
+      formatStyle(c('Score'),
+                  background = styleColorBar(range(50, 100), 'lightblue'),
+                  backgroundSize = '98% 88%',
+                  backgroundRepeat = 'no-repeat',
+                  backgroundPosition = 'center')
+  })
+  
   
   
   #map----
@@ -840,7 +899,7 @@ server <- function(input, output, session) {
           Encoding(this_row$name) <- "ASCII"
           Encoding(this_row$located_at) <- "ASCII"
           
-          #print(this_row)
+          print(this_row)
           
           geom_layer <- this_row$data_source
           geom_uid <- this_row$feature_id
@@ -871,6 +930,7 @@ server <- function(input, output, session) {
             output$candidate_matches_info_h <- renderUI({
               
               observeEvent(input$map_click, {
+                output$candidatescores <- DT::renderDataTable(req(FALSE))
                 p <- input$map_click
                 output$marker_info <- renderUI({
                   req(p)
@@ -903,16 +963,22 @@ server <- function(input, output, session) {
                                         min = 10, max = 10000,
                                         value = 500),
                             actionButton("rec_save", "Save location for the records", style='font-size:80%'),
+                            actionButton("delete1", "Remove custom mark", style='font-size:80%'),
                   "</div>
                   </div>"))
                 })
               })
               
+              
               uncert <- the_feature$coordinateuncertaintyinmeters
               if (is.na(uncert)){
                 uncert <- "NA"
               }else{
-                uncert <- paste0(uncert, " m")
+                if (uncert == ""){
+                  uncert <- "NA"
+                }else{
+                  uncert <- paste0(uncert, " m")
+                }
               }
                 
               
@@ -1088,6 +1154,7 @@ server <- function(input, output, session) {
             output$candidate_matches_info_h <- renderUI({
     
               observeEvent(input$map_click, {
+                output$candidatescores <- DT::renderDataTable(req(FALSE))
                 p <- input$map_click
                 output$marker_info <- renderUI({
                   req(p)
@@ -1116,9 +1183,8 @@ server <- function(input, output, session) {
                             <dt>Longitude</dt><dd>", click_lng, "</dd>
                             <dt>Latitude</dt><dd>", click_lat, "</dd>
                             </dl>", 
-                                
-                                "
-                  </div>")), 
+                                actionButton("delete1", "Remove custom mark", style='font-size:80%'),
+                                "</div>")), 
                     #uiOutput("uncert_slider"),
                     
                     #uncert_slider----
@@ -1143,7 +1209,7 @@ server <- function(input, output, session) {
                         <dt>Located in</dt><dd>", this_row$located_at, "</dd>
                         <dt>Uncertainty from<br> polygon area</dt><dd><br>", the_geom$min_bound_radius_m, " m</dd>
                         <dt>Type</dt><dd>", this_row$type, "</dd>
-                        <dt>Source</dt><dd>", this_row$source, "</dd>
+                        <dt>Source</dt><dd>", this_row$data_source, "</dd>
                         <dt>Score</dt><dd>", this_row$score, "</dd>
                       </dl>
                       ",
@@ -1301,6 +1367,47 @@ server <- function(input, output, session) {
   })
   
   
+  #delete marker----
+  observeEvent(input$delete1, {
+    
+    proxy <- leafletProxy('map')
+    
+    proxy %>% removeMarker(layerId = "newm")
+    
+    output$marker_info <- renderUI({req(FALSE)})
+    
+    removeUI("map_click")
+    
+    #candidatescores----
+    output$candidatescores <- DT::renderDataTable({
+      req(input$candidatematches_rows_selected)
+      #req(input$map_click == FALSE)
+      results <- session$userData$results
+      
+      candidate_info <- paste0("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '", results[input$candidatematches_rows_selected,]$candidate_id, "'::uuid")
+      cat(candidate_info)
+      candidate_scores <- dbGetQuery(db, candidate_info)
+      
+      names(candidate_scores) <- c("Match Type", "Score")
+      
+      DT::datatable(candidate_scores,
+                    escape = FALSE,
+                    options = list(searching = FALSE,
+                                   ordering = TRUE,
+                                   pageLength = 10,
+                                   paging = FALSE
+                    ),
+                    rownames = FALSE,
+                    selection = list(mode = 'none'),
+                    caption = "Scores for this candidate location") %>% 
+        formatStyle(c('Score'),
+                    background = styleColorBar(range(50, 100), 'lightblue'),
+                    backgroundSize = '98% 88%',
+                    backgroundRepeat = 'no-repeat',
+                    backgroundPosition = 'center')
+    })
+    
+  })
   
   
   # footer ----
