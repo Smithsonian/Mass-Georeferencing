@@ -293,13 +293,27 @@ server <- function(input, output, session) {
 
     #showgroup----
     output$grouped_records <- DT::renderDataTable({
+      query <- parseQueryString(session$clientData$url_search)
+      species <- trimws(query['species'])
+      
+      req(species)
+      
       req(input$records_rows_selected)
       records <- session$userData$records
       this_row <- records[input$records_rows_selected,]
 
-      records_query <- paste0("SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE mg_occurrenceid IN (SELECT mg_occurrenceid FROM mg_recordgroups WHERE recgroup_id = '", this_row$recgroup_id, "'::uuid)")
-      print(records_query)
+      
+      # SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE species = 'Eurycea cirrigera ' AND mg_occurrenceid IN (SELECT mg_occurrenceid FROM mg_recordgroups WHERE recgroup_id = '19EF8C2A-E589-41C9-9792-38C83415E81F'::uuid);
+      
+      
+      recordsgroup_query <- paste0("SELECT string_agg(mg_occurrenceid::text, ',') as mg_occurrenceid FROM mg_records WHERE recgroup_id = '", this_row$recgroup_id, "'::uuid")
+      print(recordsgroup_query)
 
+      records_groups <- dbGetQuery(db, recordsgroup_query)
+      
+      records_query <- paste0("SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE mg_occurrenceid = ANY('{", records_groups$mg_occurrenceid, "}'::uuid[])")
+      print(records_query)
+      
       records <- dbGetQuery(db, records_query)
 
       DT::datatable(records,
@@ -700,7 +714,7 @@ server <- function(input, output, session) {
     #req(input$map_click == FALSE)
     results <- session$userData$results
     
-    candidate_info <- paste0("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '", results[input$candidatematches_rows_selected,]$candidate_id, "'::uuid")
+    candidate_info <- paste0("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '", results[input$candidatematches_rows_selected,]$candidate_id, "'::uuid ORDER BY score_type")
     cat(candidate_info)
     candidate_scores <- dbGetQuery(db, candidate_info)
     
@@ -891,7 +905,6 @@ server <- function(input, output, session) {
           ) %>% 
           addMeasure(primaryLengthUnit="kilometers", secondaryLengthUnit="miles", primaryAreaUnit = "sqkilometers", position = "topleft") %>% 
           addAwesomeMarkers(data = coords, popup = results$name, clusterOptions = markerClusterOptions())
-          
       }else{
           results <- session$userData$results
           this_row <- results[input$candidatematches_rows_selected, ]
@@ -960,8 +973,8 @@ server <- function(input, output, session) {
                             "</dd>
                             </dl>",
                             sliderInput("integer", "Set the value in m:",
-                                        min = 10, max = 10000,
-                                        value = 500),
+                                        min = 0, max = 10000,
+                                        value = 500, step = 25),
                             actionButton("rec_save", "Save location for the records", style='font-size:80%'),
                             actionButton("delete1", "Remove custom mark", style='font-size:80%'),
                   "</div>
@@ -1189,7 +1202,7 @@ server <- function(input, output, session) {
                     
                     #uncert_slider----
                     #output$uncert_slider <- renderUI({
-                      sliderInput("uncert_slider", "Uncertainty in m:", min = 5, max = 10000, value = 50),
+                      sliderInput("uncert_slider", "Uncertainty in m:", min = 0, max = 10000, value = 50, step = 25),
                     actionButton("gbif_rec_save", "Save location for the records", style='font-size:80%'),
                     #})
                     HTML("</div>")
@@ -1216,8 +1229,8 @@ server <- function(input, output, session) {
                           actionButton("button", "Georeference using point and uncertainty", style='font-size:80%'),
                           "<br><br>",
                           actionButton("button", "Georeference using polygon", style='font-size:80%'),
-                          "<br><br>",
-                          actionButton("button", "Georeference using both", style='font-size:80%'),
+                          #"<br><br>",
+                          #actionButton("button", "Georeference using both", style='font-size:80%'),
                       "
                 </div>
                 </div>"))
@@ -1359,8 +1372,6 @@ server <- function(input, output, session) {
                 ) %>% 
                 addMeasure(primaryLengthUnit="kilometers", secondaryLengthUnit="miles", primaryAreaUnit = "sqkilometers", position = "topleft")
             }
-            
-            
         }
       }
     }

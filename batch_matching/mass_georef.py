@@ -3,7 +3,7 @@
 # Mass Georeferencing script
 # Version 0.1
 #
-# 18 Feb 2020
+# 25 Feb 2020
 # 
 # Digitization Program Office, 
 # Office of the Chief Information Officer,
@@ -89,6 +89,64 @@ except:
 
 conn.autocommit = True
 cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+
+
+def check_spatial(data_source, species, candidate_id, feature_id, cur, logger1):
+    if data_source == 'gbif.species' or data_source == 'gbif.genus':
+        return
+    else:
+        cur.execute("""
+            WITH data AS (
+                    SELECT 
+                        ST_Union(the_geom) as the_geom
+                    FROM 
+                        iucn
+                    WHERE
+                        sciname = '{species}'
+
+                    UNION ALL
+
+                    SELECT 
+                        ST_ConvexHull(ST_Collect(the_geom)) as the_geom
+                    FROM 
+                        gbif
+                    WHERE
+                        species = '{species}'
+            ),
+            range AS (
+                SELECT 
+                    ST_Transform(ST_Union(the_geom), 3857) as the_geom_webmercator
+                FROM
+                    data
+                ),
+            calc AS (
+                SELECT 
+                    '{candidate_id}' as candidate_id, 
+                    'locality.spatial' as score_type, 
+                    ST_Distance(l.the_geom_webmercator, r.the_geom_webmercator) AS geom_dist 
+                FROM 
+                    {data_source} l, range r
+                WHERE l.uid = '{feature_id}'::uuid
+            )
+            INSERT INTO mg_candidates_scores 
+            (candidate_id, score_type, score) 
+            (
+                SELECT 
+                    '{candidate_id}' as candidate_id, 
+                    'locality.spatial' as score_type, 
+                    CASE 
+                        WHEN geom_dist = 0 THEN 100 
+                        WHEN geom_dist > 0 AND geom_dist < 10000 THEN 95 
+                        WHEN geom_dist > 0 AND geom_dist <= 10000 THEN 95 
+                        WHEN geom_dist > 10000 AND geom_dist <= 50000 THEN 85 
+                        WHEN geom_dist > 50000 AND geom_dist <= 100000 THEN 75
+                        WHEN geom_dist > 100000 AND geom_dist <= 100000 THEN 65
+                        ELSE 60
+                        END AS score 
+                FROM 
+                    calc
+            )""".format(candidate_id = candidate_id, data_source = data_source, species = species, feature_id = feature_id))
+    logger1.debug(cur.query)
 
 
 
@@ -204,7 +262,7 @@ for sciname in scinames:
                                             insert_list_scores)
                 logger1.debug(cur.query)
         #GBIF - Genus
-        query_template = "SELECT MAX(gbifid::bigint) as uid, species, locality as name, count(*) as no_records, countrycode, trim(leading ', ' from replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) as located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) as no_features FROM gbif WHERE species LIKE '{species}%' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY species, countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
+        query_template = "SELECT MAX(gbifid::bigint) as uid, species, locality as name, count(*) as no_records, countrycode, trim(leading ', ' from replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) as located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) as no_features FROM gbif WHERE species LIKE '{species}%' AND species != '{species}' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY species, countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
         cur.execute(query_template.format(species = sciname['species'].split(' ')[0], countrycode = country['countrycode']))
         logger1.debug(cur.query)
         allcandidates = pd.DataFrame(cur.fetchall())
@@ -410,70 +468,70 @@ for sciname in scinames:
                                                 insert_list_scores)
                     logger1.debug(cur.query)
         #Geonames
-        query_template = """
-                    WITH data AS (
-                        SELECT uid, name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
-                        UNION
-                        SELECT uid, unnest(string_to_array(alternatenames, ',')) as name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
-                        )
-                    SELECT uid, name, stateprovince, source FROM data GROUP BY uid, name, stateprovince, source
-                        """
-        cur.execute(query_template, {'countrycode': record['countrycode']})
-        allcandidates = pd.DataFrame(cur.fetchall())
-        logger1.info("No. of Geonames candidates: {}".format(len(allcandidates)))
-        if len(allcandidates) > 0:
-            #Iterate each record
-            for index, record in records_g.iterrows():
-                candidates = allcandidates.copy()
-                candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                ##################
-                #Execute matches
-                ##################
-                #locality
-                candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
-                candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince']), axis = 1)
-                candidates['score3'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality'], row['name']), axis = 1)
-                candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                #ADJUST SCORE HERE, IF NEEDED
-                #
-                #Batch insert
-                candidates['recgroup_id'] = record['recgroup_id']
-                insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
-                insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
-                insert_list = insert_list.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
-                                            (candidate_id, recgroup_id, data_source, feature_id, no_features) 
-                                        VALUES 
-                                            (%s, %s, %s, %s, 1)""", 
-                                            insert_list)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score1']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'locality.partial_ratio', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score2']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'stateprovince', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
-                insert_list_scores = candidates[['candidate_id', 'score3']].copy()
-                insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
-                insert_list_scores = insert_list_scores.values.tolist()
-                psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
-                                            (candidate_id, score_type, score) 
-                                        VALUES 
-                                            (%s, 'locality.token_set_ratio', %s)""", 
-                                            insert_list_scores)
-                logger1.debug(cur.query)
+        # query_template = """
+        #             WITH data AS (
+        #                 SELECT uid, name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
+        #                 UNION
+        #                 SELECT uid, unnest(string_to_array(alternatenames, ',')) as name, gadm2 as stateprovince, 'geonames' as source FROM geonames WHERE country_code = %(countrycode)s
+        #                 )
+        #             SELECT uid, name, stateprovince, source FROM data GROUP BY uid, name, stateprovince, source
+        #                 """
+        # cur.execute(query_template, {'countrycode': record['countrycode']})
+        # allcandidates = pd.DataFrame(cur.fetchall())
+        # logger1.info("No. of Geonames candidates: {}".format(len(allcandidates)))
+        # if len(allcandidates) > 0:
+        #     #Iterate each record
+        #     for index, record in records_g.iterrows():
+        #         candidates = allcandidates.copy()
+        #         candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
+        #         ##################
+        #         #Execute matches
+        #         ##################
+        #         #locality
+        #         candidates['score1'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
+        #         candidates['score2'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince']), axis = 1)
+        #         candidates['score3'] = candidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality'], row['name']), axis = 1)
+        #         candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
+        #         #ADJUST SCORE HERE, IF NEEDED
+        #         #
+        #         #Batch insert
+        #         candidates['recgroup_id'] = record['recgroup_id']
+        #         insert_list = candidates[['candidate_id', 'recgroup_id', 'source', 'uid']].copy()
+        #         insert_list['candidate_id'] = insert_list['candidate_id'].astype(str)
+        #         insert_list = insert_list.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates 
+        #                                     (candidate_id, recgroup_id, data_source, feature_id, no_features) 
+        #                                 VALUES 
+        #                                     (%s, %s, %s, %s, 1)""", 
+        #                                     insert_list)
+        #         logger1.debug(cur.query)
+        #         insert_list_scores = candidates[['candidate_id', 'score1']].copy()
+        #         insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+        #         insert_list_scores = insert_list_scores.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+        #                                     (candidate_id, score_type, score) 
+        #                                 VALUES 
+        #                                     (%s, 'locality.partial_ratio', %s)""", 
+        #                                     insert_list_scores)
+        #         logger1.debug(cur.query)
+        #         insert_list_scores = candidates[['candidate_id', 'score2']].copy()
+        #         insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+        #         insert_list_scores = insert_list_scores.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+        #                                     (candidate_id, score_type, score) 
+        #                                 VALUES 
+        #                                     (%s, 'stateprovince', %s)""", 
+        #                                     insert_list_scores)
+        #         logger1.debug(cur.query)
+        #         insert_list_scores = candidates[['candidate_id', 'score3']].copy()
+        #         insert_list_scores['candidate_id'] = insert_list_scores['candidate_id'].astype(str)
+        #         insert_list_scores = insert_list_scores.values.tolist()
+        #         psycopg2.extras.execute_batch(cur, """INSERT INTO mg_candidates_scores 
+        #                                     (candidate_id, score_type, score) 
+        #                                 VALUES 
+        #                                     (%s, 'locality.token_set_ratio', %s)""", 
+        #                                     insert_list_scores)
+        #         logger1.debug(cur.query)
         #GNIS
         if record['countrycode'] == 'US':
             query_template = "SELECT uid, feature_name as name, gadm2 as stateprovince, 'gnis' as source FROM gnis WHERE gadm2 ILIKE '%{}, United States'"
@@ -658,44 +716,69 @@ for sciname in scinames:
     cur.execute("DELETE FROM mg_recordgroups WHERE species = %(species)s AND recgroup_id NOT IN (SELECT recgroup_id FROM mg_candidates GROUP BY recgroup_id)", {'species': sciname['species']})
     logger1.debug(cur.query)
     #Spatial Match
-    cur.execute("select candidate_id, data_source, feature_id from mg_candidates mc where recgroup_id in (select recgroup_id from mg_recordgroups where species = %(species)s)", {'species': sciname['species']})
+    cur.execute("select candidate_id, data_source, feature_id, %(species)s as species from mg_candidates mc where recgroup_id in (select recgroup_id from mg_recordgroups where species = %(species)s) GROUP BY candidate_id, data_source, feature_id", {'species': sciname['species']})
     logger1.debug(cur.query)
     allcandidates = pd.DataFrame(cur.fetchall())
     if len(allcandidates) > 0:
         logger1.info("Matching spatial location for {} records of {}".format(len(allcandidates), sciname['species']))
         #Iterate each record
-        for index, record in allcandidates.iterrows():
-            if record['data_source'] == 'gbif.species' or record['data_source'] == 'gbif.genus':
-                continue
-            cur.execute("""
-                    WITH range AS (
-                            SELECT 
-                                st_union(the_geom) as the_geom
-                            FROM 
-                                iucn
-                            WHERE
-                                sciname = '{species}'
+        allcandidates.swifter.allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
+        #check_spatial(data_source, species, candidate_id, feature_id, cur, logger1)
+        # for index, record in allcandidates.iterrows():
+        #     if record['data_source'] == 'gbif.species' or record['data_source'] == 'gbif.genus':
+        #         continue
+        #     cur.execute("""
+        #             WITH data AS (
+        #                     SELECT 
+        #                         ST_Union(the_geom) as the_geom
+        #                     FROM 
+        #                         iucn
+        #                     WHERE
+        #                         sciname = '{species}'
 
-                            UNION ALL
+        #                     UNION ALL
 
-                            SELECT 
-                                ST_ConvexHull(ST_Collect(the_geom)) as the_geom
-                            FROM 
-                                gbif
-                            WHERE
-                                species = '{species}'
-                        )
-
-                    INSERT INTO 
-                    mg_candidates_scores 
-                        (candidate_id, score_type, score) 
-                    (
-                        SELECT 
-                            '{candidate_id}' as candidate_id, 'locality.spatial' as score_type, CASE WHEN ST_INTERSECTS(l.the_geom, r.the_geom) = 't' THEN 100 ELSE 70 END AS score 
-                        FROM 
-                            {data_source} l, range r
-                        WHERE l.uid = '{feature_id}'::uuid)""".format(candidate_id = record['candidate_id'], data_source = record['data_source'], species = sciname['species'], feature_id = record['feature_id']))
-            logger1.debug(cur.query)
+        #                     SELECT 
+        #                         ST_ConvexHull(ST_Collect(the_geom)) as the_geom
+        #                     FROM 
+        #                         gbif
+        #                     WHERE
+        #                         species = '{species}'
+        #             ),
+        #             range AS (
+        #                 SELECT 
+        #                     ST_Transform(ST_Union(the_geom), 3857) as the_geom_webmercator
+        #                 FROM
+        #                     data
+        #                 ),
+        #             calc AS (
+        #                 SELECT 
+        #                     '{candidate_id}' as candidate_id, 
+        #                     'locality.spatial' as score_type, 
+        #                     ST_Distance(l.the_geom_webmercator, r.the_geom_webmercator) AS geom_dist 
+        #                 FROM 
+        #                     {data_source} l, range r
+        #                 WHERE l.uid = '{feature_id}'::uuid
+        #             )
+        #             INSERT INTO mg_candidates_scores 
+        #             (candidate_id, score_type, score) 
+        #             (
+        #                 SELECT 
+        #                     '{candidate_id}' as candidate_id, 
+        #                     'locality.spatial' as score_type, 
+        #                     CASE 
+        #                         WHEN geom_dist = 0 THEN 100 
+        #                         WHEN geom_dist > 0 AND geom_dist < 10000 THEN 95 
+        #                         WHEN geom_dist > 0 AND geom_dist <= 10000 THEN 95 
+        #                         WHEN geom_dist > 10000 AND geom_dist <= 50000 THEN 85 
+        #                         WHEN geom_dist > 50000 AND geom_dist <= 100000 THEN 75
+        #                         WHEN geom_dist > 100000 AND geom_dist <= 100000 THEN 65
+        #                         ELSE 60
+        #                         END AS score 
+        #                 FROM 
+        #                     calc
+        #             )""".format(candidate_id = record['candidate_id'], data_source = record['data_source'], species = sciname['species'], feature_id = record['feature_id']))
+        #     logger1.debug(cur.query)
 
 
 
