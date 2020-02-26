@@ -95,58 +95,65 @@ def check_spatial(data_source, species, candidate_id, feature_id, cur, logger1):
     if data_source == 'gbif.species' or data_source == 'gbif.genus':
         return
     else:
-        cur.execute("""
-            WITH data AS (
-                    SELECT 
-                        ST_Union(the_geom) as the_geom
-                    FROM 
-                        iucn
-                    WHERE
-                        sciname = '{species}'
+        #Use a try in case there is a problem with the geom
+        try:
+            cur.execute("""
+                WITH data AS (
+                        SELECT 
+                            ST_Union(the_geom) as the_geom
+                        FROM 
+                            iucn
+                        WHERE
+                            sciname = '{species}'
 
-                    UNION ALL
+                        UNION ALL
 
-                    SELECT 
-                        ST_ConvexHull(ST_Collect(the_geom)) as the_geom
-                    FROM 
-                        gbif
-                    WHERE
-                        species = '{species}'
-            ),
-            range AS (
-                SELECT 
-                    ST_Transform(ST_Union(the_geom), 3857) as the_geom_webmercator
-                FROM
-                    data
+                        SELECT 
+                            ST_ConvexHull(ST_Collect(the_geom)) as the_geom
+                        FROM 
+                            gbif
+                        WHERE
+                            species = '{species}'
                 ),
-            calc AS (
-                SELECT 
-                    '{candidate_id}' as candidate_id, 
-                    'locality.spatial' as score_type, 
-                    ST_Distance(l.the_geom_webmercator, r.the_geom_webmercator) AS geom_dist 
-                FROM 
-                    {data_source} l, range r
-                WHERE l.uid = '{feature_id}'::uuid
-            )
-            INSERT INTO mg_candidates_scores 
-            (candidate_id, score_type, score) 
-            (
-                SELECT 
-                    '{candidate_id}' as candidate_id, 
-                    'locality.spatial' as score_type, 
-                    CASE 
-                        WHEN geom_dist = 0 THEN 100 
-                        WHEN geom_dist > 0 AND geom_dist < 10000 THEN 95 
-                        WHEN geom_dist > 0 AND geom_dist <= 10000 THEN 95 
-                        WHEN geom_dist > 10000 AND geom_dist <= 50000 THEN 85 
-                        WHEN geom_dist > 50000 AND geom_dist <= 100000 THEN 75
-                        WHEN geom_dist > 100000 AND geom_dist <= 100000 THEN 65
-                        ELSE 60
-                        END AS score 
-                FROM 
-                    calc
-            )""".format(candidate_id = candidate_id, data_source = data_source, species = species, feature_id = feature_id))
-    logger1.debug(cur.query)
+                range AS (
+                    SELECT 
+                        ST_Transform(ST_Union(the_geom), 3857) as the_geom_webmercator
+                    FROM
+                        data
+                    ),
+                calc AS (
+                    SELECT 
+                        '{candidate_id}' as candidate_id, 
+                        'locality.spatial' as score_type, 
+                        ST_Distance(l.the_geom_webmercator, r.the_geom_webmercator) AS geom_dist 
+                    FROM 
+                        {data_source} l, range r
+                    WHERE l.uid = '{feature_id}'::uuid
+                )
+                INSERT INTO mg_candidates_scores 
+                (candidate_id, score_type, score) 
+                (
+                    SELECT 
+                        '{candidate_id}' as candidate_id, 
+                        'locality.spatial' as score_type, 
+                        CASE 
+                            WHEN geom_dist = 0 THEN 100 
+                            WHEN geom_dist > 0 AND geom_dist < 10000 THEN 95 
+                            WHEN geom_dist > 0 AND geom_dist <= 10000 THEN 95 
+                            WHEN geom_dist > 10000 AND geom_dist <= 50000 THEN 85 
+                            WHEN geom_dist > 50000 AND geom_dist <= 100000 THEN 75
+                            WHEN geom_dist > 100000 AND geom_dist <= 100000 THEN 65
+                            ELSE 60
+                            END AS score 
+                    FROM 
+                        calc
+                )""".format(candidate_id = candidate_id, data_source = data_source, species = species, feature_id = feature_id))
+            logger1.debug(cur.query)
+        except Exception as e:
+            logger1.error(cur.query)
+            logger1.error(e)
+            return
+    return
 
 
 
@@ -262,8 +269,8 @@ for sciname in scinames:
                                             insert_list_scores)
                 logger1.debug(cur.query)
         #GBIF - Genus
-        query_template = "SELECT MAX(gbifid::bigint) as uid, species, locality as name, count(*) as no_records, countrycode, trim(leading ', ' from replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) as located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) as no_features FROM gbif WHERE species LIKE '{species}%' AND species != '{species}' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY species, countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
-        cur.execute(query_template.format(species = sciname['species'].split(' ')[0], countrycode = country['countrycode']))
+        query_template = "SELECT MAX(gbifid::bigint) as uid, species, locality as name, count(*) as no_records, countrycode, trim(leading ', ' from replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) as located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) as no_features FROM gbif WHERE species LIKE '{genus}%' AND species != '{species}' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY species, countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
+        cur.execute(query_template.format(genus = sciname['species'].split(' ')[0], species = sciname['species'], countrycode = country['countrycode']))
         logger1.debug(cur.query)
         allcandidates = pd.DataFrame(cur.fetchall())
         logger1.info("No. of GBIF candidates: {}".format(len(allcandidates)))
