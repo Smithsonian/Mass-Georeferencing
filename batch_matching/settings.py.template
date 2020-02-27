@@ -1,3 +1,6 @@
+#Database or files?
+backend = "database" #database or files
+
 #Database creds
 pg_host = "localhost"
 pg_db = ""
@@ -5,3 +8,9 @@ pg_user = ""
 
 #Threshold
 min_score = 80
+
+#Which collection to run
+collex_id = ""
+
+#No. of cores for parallel
+n_cores = 8

@@ -53,6 +53,7 @@ CREATE TABLE mg_recordgroups
     genus text, 
     species text NOT NULL,     
     no_records int NOT NULL DEFAULT 1,
+    no_candidates int NOT NULL DEFAULT 0,
     updated_at timestamp with time zone DEFAULT NOW());
 CREATE INDEX mg_recordgroups_rgid_idx ON mg_recordgroups USING BTREE(recgroup_id);
 CREATE INDEX mg_recordgroups_cid_idx ON mg_recordgroups USING BTREE(collex_id);

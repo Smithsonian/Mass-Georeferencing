@@ -218,7 +218,7 @@ server <- function(input, output, session) {
     
     req(species != "NULL")
     
-    records_query <- paste0("SELECT * FROM mg_recordgroups WHERE species = '", species, "' ORDER BY no_records DESC")
+    records_query <- paste0("SELECT * FROM mg_recordgroups WHERE species = '", species, "' AND no_candidates > 0 ORDER BY locality ASC, no_records DESC")
     
     records <- dbGetQuery(db, records_query)
     
@@ -314,8 +314,10 @@ server <- function(input, output, session) {
       records_query <- paste0("SELECT gbifid, eventdate, locality, countrycode, higherclassification, issue, recordedby FROM mg_occurrences WHERE mg_occurrenceid = ANY('{", records_groups$mg_occurrenceid, "}'::uuid[])")
       print(records_query)
       
-      records <- dbGetQuery(db, records_query)
+      records <- dbGetQuery(db, records_query) %>% 
+        mutate(gbifid = paste0("<a href='https://gbif.org/occurrence/", gbifid,"' target='_blank'>", gbifid,"</a>"))
 
+      
       DT::datatable(records,
                        escape = FALSE,
                        options = list(searching = FALSE,
@@ -677,7 +679,7 @@ server <- function(input, output, session) {
                                       ordering = TRUE,
                                       pageLength = 15,
                                       paging = FALSE,
-                                      scrollY = "680px"
+                                      scrollY = "640px"
                        ),
                        rownames = FALSE,
                        selection = list(mode = 'single', selected = c(1)),
@@ -689,7 +691,7 @@ server <- function(input, output, session) {
                                       ordering = TRUE,
                                       pageLength = 15,
                                       paging = TRUE,
-                                      scrollY = "680px"#,
+                                      scrollY = "640px"#,
                                       # dom = 'Pfrtip', columnDefs = list(list(
                                       #   searchPanes = list(show = FALSE), targets = 3:4
                                       # ))
@@ -750,7 +752,7 @@ server <- function(input, output, session) {
     if (is.null(input$records_rows_selected)){
       #species only----
       
-      api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
+      #api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
       
       url_get <- paste0(api_convex_url, species)
       
@@ -762,7 +764,7 @@ server <- function(input, output, session) {
                            )
       )
       
-      #print(api_req)
+      print(api_req)
       
       convex_geom <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
       
@@ -823,7 +825,7 @@ server <- function(input, output, session) {
       if (is.null(input$candidatematches_rows_selected)){
         
         #Only species dist----
-        api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
+        #api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
         
         #convexhull
         url_get <- paste0(api_convex_url, species)
@@ -1034,7 +1036,7 @@ server <- function(input, output, session) {
             })
             
             #convexhull
-            api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
+            #api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
             
             url_get <- paste0(api_convex_url, species)
             
@@ -1245,7 +1247,7 @@ server <- function(input, output, session) {
             
             #convexhull
             
-            api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
+            #api_convex_url <- "http://dpogis.si.edu/api/0.1/species_range?scientificname="
             
             url_get <- paste0(api_convex_url, species)
             
