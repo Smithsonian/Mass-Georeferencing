@@ -1,0 +1,15 @@
+#PostGIS database connection settings
+host="localhost"
+database=""
+user=""
+password = ""
+
+#EDAN creds
+AppID = ""
+AppKey = ""
+
+#Allow an IP to use without a key (for dev)
+allow_ip = ""
+
+#Number of workers for parallel
+no_workers = 4

@@ -1,0 +1,6 @@
+settings.py
+*.sh
+__pycache__
+*.log
+localsync.sh
+edan.py

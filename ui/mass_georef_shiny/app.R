@@ -16,9 +16,9 @@ library(DT)
 library(DBI)
 
 #Settings----
-app_name <- "Mass Georeferencing Tool - DPO"
+app_name <- "Mass Georeferencing Tool"
 app_ver <- "0.1.0"
-github_link <- "https://github.com/Smithsonian/"
+github_link <- "https://github.com/Smithsonian/Mass-Georeferencing"
 options(stringsAsFactors = FALSE)
 options(encoding = 'UTF-8')
 #Logfile
@@ -366,7 +366,8 @@ server <- function(input, output, session) {
                               c.candidate_id, 
                               ROUND(AVG(s.score),1) AS score, 
                               c.data_source,
-                              c.feature_id 
+                              c.feature_id,
+                              c.no_features
                             FROM 
                               mg_candidates c LEFT JOIN 
                               mg_candidates_scores s ON (c.candidate_id = s.candidate_id)
@@ -388,7 +389,8 @@ server <- function(input, output, session) {
                                   decimallongitude as longitude,
                                   decimallatitude as latitude,
                                   m.gbifid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gbif m
@@ -408,7 +410,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gadm1 m
@@ -427,7 +430,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gadm2 m
@@ -446,7 +450,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gadm3 m
@@ -465,7 +470,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gadm4 m
@@ -484,7 +490,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                                  
                                   gadm5 m
@@ -503,7 +510,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                               
                                   wdpa_polygons m
@@ -522,7 +530,8 @@ server <- function(input, output, session) {
                                   st_x(m.the_geom)::numeric as longitude,
                                   st_y(m.the_geom)::numeric as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                               
                                   wdpa_points m
@@ -541,7 +550,8 @@ server <- function(input, output, session) {
                                   round(st_x(m.centroid)::numeric, 5) as longitude,
                                   round(st_y(m.centroid)::numeric, 5) as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                               
                                   global_lakes m
@@ -560,7 +570,8 @@ server <- function(input, output, session) {
                                   long::numeric as longitude,
                                   lat::numeric as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                               
                                   gns m
@@ -579,7 +590,8 @@ server <- function(input, output, session) {
                                   prim_long_dec::numeric as longitude,
                                   prim_lat_dec::numeric as latitude,
                                   m.uid::text as feature_id,
-                                  s.candidate_id
+                                  s.candidate_id,
+                                  s.no_features
                                 FROM 
                                   score s,                               
                                   gnis m
@@ -1010,7 +1022,7 @@ server <- function(input, output, session) {
                             <dt>Dataset</dt><dd><a href=\"https://www.gbif.org/dataset/", the_feature$datasetkey, "\" target=_blank title=\"View dataset in GBIF\">", the_feature$dataset, "</a></dd>
                             <dt>Date</dt><dd>", this_row$eventdate, "</dd>
                             <dt>Score</dt><dd>", this_row$score, "</dd>
-                            <dt>No. of records</dt><dd>", this_row$no_records, "</dd>
+                            <dt>No. of records</dt><dd>", this_row$no_features, "</dd>
                             <dt>Lat/Lon</dt><dd>", this_row$latitude, " / ", this_row$longitude, "</dd>
                             <dt>Record issues</dt><dd><small>")
               

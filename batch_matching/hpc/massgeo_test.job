@@ -1,0 +1,22 @@
+# /bin/sh 
+# ----------------Parameters---------------------- #
+#$  -S /bin/sh
+#$ -pe mthread 8
+#$ -q sThC.q
+#$ -l mres=8G,h_data=1G,h_vmem=1G
+#$ -cwd
+#$ -j y
+#$ -N massgeo_test
+#$ -o massgeo_test.log
+#
+# ----------------Modules------------------------- #
+module load tools/python/3.7
+#
+# ----------------Your Commands------------------- #
+#
+echo + `date` job $JOB_NAME started in $QUEUE with jobID=$JOB_ID on $HOSTNAME
+echo + NSLOTS = $NSLOTS
+#
+/pool/genomics/villanueval/mass_georef_files.sh $SGE_TASK_ID
+#
+echo = `date` job $JOB_NAME done

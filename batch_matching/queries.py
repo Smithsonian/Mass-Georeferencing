@@ -18,20 +18,20 @@ gbif_species_country = "SELECT MAX(gbifid::bigint) AS uid, locality AS name, cou
 gbif_genus_country = "SELECT MAX(gbifid::bigint) AS uid, species, locality AS name, count(*) AS no_records, countrycode, trim(leading ', ' FROM replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) AS located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) AS no_features FROM gbif WHERE species LIKE '{genus}%' AND species != '{species}' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY species, countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
 
 wdpa_iso = """
-        WITH data AS (SELECT uid, name, gadm2 AS stateprovince, 'wdpa_polygons' AS data_source FROM wdpa_polygons WHERE parent_iso = %(iso)s AND lower(name) != 'unknown'
+        WITH data AS (SELECT uid, name, gadm2 AS stateprovince, 'wdpa_polygons' AS data_source FROM wdpa_polygons WHERE parent_iso LIKE '%{iso}%' AND lower(name) != 'unknown'
         UNION 
-        SELECT uid, orig_name AS name, gadm2 AS stateprovince, 'wdpa_polygons' AS data_source FROM wdpa_polygons WHERE parent_iso = %(iso)s AND lower(name) != 'unknown'
+        SELECT uid, orig_name AS name, gadm2 AS stateprovince, 'wdpa_polygons' AS data_source FROM wdpa_polygons WHERE parent_iso LIKE '%{iso}%' AND lower(name) != 'unknown'
         UNION 
-        SELECT uid, name, gadm2 AS stateprovince, 'wdpa_points' AS data_source FROM wdpa_points WHERE parent_iso = %(iso)s AND lower(name) != 'unknown'
+        SELECT uid, name, gadm2 AS stateprovince, 'wdpa_points' AS data_source FROM wdpa_points WHERE parent_iso LIKE '%{iso}%' AND lower(name) != 'unknown'
         UNION 
-        SELECT uid, orig_name AS name, gadm2 AS stateprovince, 'wdpa_points' AS data_source FROM wdpa_points WHERE parent_iso = %(iso)s AND lower(name) != 'unknown')
+        SELECT uid, orig_name AS name, gadm2 AS stateprovince, 'wdpa_points' AS data_source FROM wdpa_points WHERE parent_iso LIKE '%{iso}%' AND lower(name) != 'unknown')
         SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
             """
 
 gadm_country = """
-        SELECT uid, name_1 AS name, name_0 AS stateprovince, 'gadm1' AS data_source FROM gadm1 WHERE name_0 = %(country)s 
+        SELECT uid, name_1 AS name, name_1 AS stateprovince, 'gadm1' AS data_source FROM gadm1 WHERE name_0 = %(country)s 
         UNION 
-        SELECT uid, varname_1 AS name, name_0 AS stateprovince, 'gadm1' AS data_source FROM gadm1 WHERE name_0 = %(country)s AND varname_1 IS NOT NULL
+        SELECT uid, varname_1 AS name, name_1 AS stateprovince, 'gadm1' AS data_source FROM gadm1 WHERE name_0 = %(country)s AND varname_1 IS NOT NULL
         UNION
         SELECT uid, name_2 AS name, name_1 || ', ' || name_0 AS stateprovince, 'gadm2' AS data_source FROM gadm2 WHERE name_0 = %(country)s 
         UNION 

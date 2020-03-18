@@ -41,3 +41,4 @@ vignettes/*.pdf
 settings.py
 settings.R
 
+*.log

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>DPOGIS</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+
+</head>
+<body>
+
+<div class="container">
+
+<h3>Spatial GIS API Data Sources</h3>
+
+  <table class="table table-sm table-striped">
+  <thead class = "thead-dark">
+    <tr>
+      <th scope="col">Source ID</th>
+      <th scope="col">Title / URL</th>
+      <th scope="col">No. of features</th>
+      <th scope="col">Notes</th>
+      <th scope="col" class="text-nowrap">Date</th>
+      <th scope="col">Refresh Rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for source in data %}
+        <tr>
+          <td>{{ source.datasource_id }}</td>
+          <td>{{ source.source_title }}<br>
+              <a href="{{ source.source_url }}" target = "_blank">{{ source.source_url }}</a></td>
+          <td>{{ source.no_feat }}</td>
+          <td>{{ source.source_notes }}</td>
+          <td class="text-nowrap">{{ source.date_f }}</td>
+          <td>{{ source.source_refresh }}</td>
+        </tr>      
+    {% endfor %}
+       <tr>
+          <td class="table-light">&nbsp;</td>
+          <td class="table-success"><strong>Total:</strong></td>
+          <td class="table-success"><strong>{{ summary }}</strong></td>
+          <td class="table-light">&nbsp;</td>
+          <td class="table-light">&nbsp;</td>
+          <td class="table-light">&nbsp;</td>
+        </tr> 
+  </tbody>
+</table>
+
+<p><a href="https://confluence.si.edu/display/DPOI/Spatial+database+and+API">More info</a></p>
+
+</div>
+
+
+
+<!-- JavaScript -->
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+</body>
+</html>
