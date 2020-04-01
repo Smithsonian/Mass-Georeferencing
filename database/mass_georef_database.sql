@@ -281,3 +281,15 @@ CREATE TRIGGER trigger_updated_at_mg_candidates_scr
 
 
 
+
+
+--Function to test if a value is a valid date
+--Adapted from https://stackoverflow.com/a/25374982
+CREATE OR REPLACE FUNCTION is_date(s varchar) RETURNS boolean as $$
+BEGIN
+  perform s::date;
+  return true;
+EXCEPTION WHEN OTHERS THEN
+  return false;
+END;
+$$ language plpgsql;
