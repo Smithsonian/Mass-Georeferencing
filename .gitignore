@@ -42,3 +42,4 @@ settings.py
 settings.R
 
 *.log
+*.Rproj
