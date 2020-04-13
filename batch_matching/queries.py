@@ -52,7 +52,7 @@ gadm_country = """
 gnis_query = "SELECT uid, feature_name AS name, gadm2 AS stateprovince, 'gnis' AS data_source FROM gnis WHERE gadm2 ILIKE '%{}, United States'"
 
 
-tiger_query = "SELECT uid, fullname AS name, gadm2 AS stateprovince, 'tiger' AS data_source FROM gnis WHERE gadm2 ILIKE '%{}, United States'"
+tiger_query = "SELECT uid, fullname AS name, gadm2 AS stateprovince, 'tiger' AS data_source FROM tiger WHERE gadm2 ILIKE '%{}, United States'"
 
 
 gns_query = "SELECT uid, full_name_nd_ro AS name, gadm2 AS stateprovince, 'gns' AS data_source FROM gns WHERE cc1 = %(countrycode)s"
