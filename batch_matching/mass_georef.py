@@ -307,6 +307,41 @@ for sciname in scinames:
                         insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
                         insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
                         insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
+        #Tiger (US Census)
+        if 'tiger' in settings.layers:
+            if record['countrycode'] == 'US':
+                cur.execute(re.sub(' +', ' ', queries.tiger_query.replace('\n', '')).format(record['stateprovince']))
+                logger1.debug(cur.query)
+                allcandidates = pd.DataFrame(cur.fetchall())
+                logger1.info("No. of TIGER candidates: {}".format(len(allcandidates)))
+                if len(allcandidates) > 0:
+                    #Iterate each record
+                    for index, record in records_g.iterrows():
+                        candidates = allcandidates.copy()
+                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
+                        candidates['candidate_id'] = candidates['candidate_id'].astype(str)
+                        ##################
+                        #Execute matches
+                        ##################
+                        #locality.partial_ratio
+                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name']), axis = 1)
+                        candidates['score1_type'] = "locality.partial_ratio"
+                        #stateprovince
+                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince']), axis = 1)
+                        candidates['score2_type'] = "stateprovince"
+                        #locality.token_set_ratio
+                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality'], row['name']), axis = 1)
+                        candidates['score3_type'] = "locality.token_set_ratio"
+                        #Remove candidates with average score less than settings.min_score
+                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
+                        candidates['recgroup_id'] = record['recgroup_id']
+                        candidates['no_features'] = 1
+                        #Insert candidates and each score
+                        candidates['candidate_id'] = candidates['candidate_id'].astype(str)
+                        insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
+                        insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
+                        insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
+                        insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
         #GNS - Not US
         if 'gns' in settings.layers:
             if record['countrycode'] != 'US':
