@@ -92,7 +92,8 @@ for country in countries:
         continue
     else:
         countryname = country['country'].lower().capitalize()
-        elif pycountry.countries.get(name = countryname) != None:
+        countryname_lower = country['country'].lower()
+        if pycountry.countries.get(name = countryname) != None:
             #Found name
             cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(name = countryname).alpha_2, country['countryverbatim'].replace("'", "''")))
             logger1.info(cur.query)
@@ -102,16 +103,16 @@ for country in countries:
             logger1.info(cur.query)
         else:
             #Split names and try to find matches
-            country_split = countryname.split("/")
+            country_split = countryname_lower.split("/")
             if len(country_split) == 1:
                 #Try another separator
-                country_split = countryname.split(" or ")
+                country_split = countryname_lower.split(" or ")
             if len(country_split) == 1:
                 #Try another separator
-                country_split = countryname.split(" and ")
+                country_split = countryname_lower.split(" and ")
             country_codes = []
             for c1 in country_split:
-                c2 = c1.strip()
+                c2 = c1.capitalize().strip()
                 if pycountry.countries.get(name = c2) != None:
                     country_codes.append(pycountry.countries.get(name = c2).alpha_2)
                 elif pycountry.countries.get(common_name = c2) != None:
