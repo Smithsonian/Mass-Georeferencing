@@ -143,7 +143,7 @@ for sciname in scinames:
         #GBIF - species
         if 'gbif.species' in settings.layers:
             if country['countrycode'] == "":
-                cur.execute(queries.gbif_species_country.format(species = sciname['species'], countrycode = '%')
+                cur.execute(queries.gbif_species_country.format(species = sciname['species'], countrycode = '%'))
             else:
                 cur.execute(queries.gbif_species_country, {'species': sciname['species'], 'countrycode': country['countrycode']})
             logger1.debug(cur.query)
