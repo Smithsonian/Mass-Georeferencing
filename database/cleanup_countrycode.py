@@ -82,29 +82,38 @@ except:
     sys.exit(1)
 conn.autocommit = True
 cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-cur.execute("SELECT DISTINCT countryverbatim FROM mg_occurrences WHERE countrycode IS NULL")
+cur.execute("SELECT countryverbatim, TRIM(regexp_replace(countryverbatim, '[^a-zA-Z \\\\]', '', 'g')) as country FROM mg_occurrences WHERE countrycode IS NULL GROUP BY countryverbatim")
 logger1.debug(cur.query)
 countries = cur.fetchall()
 for country in countries:
-    logger1.info("Country: {}".format(country['countryverbatim']))
-    if country['countryverbatim'] == None:
+    logger1.info("Country: {}".format(country['country']))
+    if country['country'] == None:
         #Empty, go to next
         continue
-    elif pycountry.countries.get(name = country['countryverbatim']) != None:
+    elif pycountry.countries.get(name = country['country']) != None:
         #Found name
-        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(name = country['countryverbatim']).alpha_2, country['countryverbatim'].replace("'", "''")))
+        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(name = country['country']).alpha_2, country['countryverbatim'].replace("'", "''")))
         logger1.info(cur.query)
-    elif pycountry.countries.get(common_name = country['countryverbatim']) != None:
+    elif pycountry.countries.get(common_name = country['country']) != None:
         #Found name using common_name
-        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(common_name = country['countryverbatim']).alpha_2, country['countryverbatim'].replace("'", "''")))
+        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(common_name = country['country']).alpha_2, country['countryverbatim'].replace("'", "''")))
         logger1.info(cur.query)
     else:
         #Split names and try to find matches
-        country_split = country['countryverbatim'].split("/")
+        country_split = country['country'].split("/")
+        if len(country_split) == 1:
+            #Try another separator
+            country_split = country['country'].split(" or ")
+        if len(country_split) == 1:
+            #Try another separator
+            country_split = country['country'].split(" and ")
         country_codes = []
         for c1 in country_split:
-            if pycountry.countries.get(name = c1.strip()) != None:
-                country_codes.append(pycountry.countries.get(name = c1.strip()).alpha_2)
+            c2 = c1.strip()
+            if pycountry.countries.get(name = c2) != None:
+                country_codes.append(pycountry.countries.get(name = c2).alpha_2)
+            elif pycountry.countries.get(common_name = c2) != None:
+                country_codes.append(pycountry.countries.get(common_name = c2).alpha_2)
         country_codes = ','.join(country_codes)
         if country_codes != "":
             cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(country_codes, country['countryverbatim'].replace("'", "''")))
