@@ -90,23 +90,24 @@ for country in countries:
     if country['country'] == None:
         #Empty, go to next
         continue
-    elif pycountry.countries.get(name = country['country']) != None:
+    countryname = country['country'].lower().capitalize()
+    elif pycountry.countries.get(name = countryname) != None:
         #Found name
-        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(name = country['country']).alpha_2, country['countryverbatim'].replace("'", "''")))
+        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(name = countryname).alpha_2, country['countryverbatim'].replace("'", "''")))
         logger1.info(cur.query)
-    elif pycountry.countries.get(common_name = country['country']) != None:
+    elif pycountry.countries.get(common_name = countryname) != None:
         #Found name using common_name
-        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(common_name = country['country']).alpha_2, country['countryverbatim'].replace("'", "''")))
+        cur.execute("UPDATE mg_occurrences SET countrycode = '{}' WHERE countryverbatim = '{}'".format(pycountry.countries.get(common_name = countryname).alpha_2, country['countryverbatim'].replace("'", "''")))
         logger1.info(cur.query)
     else:
         #Split names and try to find matches
-        country_split = country['country'].split("/")
+        country_split = countryname.split("/")
         if len(country_split) == 1:
             #Try another separator
-            country_split = country['country'].split(" or ")
+            country_split = countryname.split(" or ")
         if len(country_split) == 1:
             #Try another separator
-            country_split = country['country'].split(" and ")
+            country_split = countryname.split(" and ")
         country_codes = []
         for c1 in country_split:
             c2 = c1.strip()
