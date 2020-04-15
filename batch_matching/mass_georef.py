@@ -18,6 +18,7 @@ from fuzzywuzzy import fuzz
 from pyfiglet import Figlet
 import psycopg2, psycopg2.extras
 from psycopg2.extras import execute_batch
+import random
 
 
 #Get settings
@@ -109,12 +110,15 @@ for sciname in scinames:
     logger1.debug(cur.query)    
 
 
+#Randomize species
+random.shuffle(scinames)
 
 
 #Loop the species
 for sciname in scinames:
     logger1.info("sciname: {}".format(sciname['species']))
     #Get countrycodes for the species
+    # country can be comma-separated array
     cur.execute(queries.get_spp_countries, (sciname['species'],))
     logger1.debug(cur.query)
     countries = cur.fetchall()
@@ -138,7 +142,10 @@ for sciname in scinames:
             logger1.debug(cur.query)
         #GBIF - species
         if 'gbif.species' in settings.layers:
-            cur.execute(queries.gbif_species_country, {'species': sciname['species'], 'countrycode': country['countrycode']})
+            if country['countrycode'] == "":
+                cur.execute(queries.gbif_species_country.format(species = sciname['species'], countrycode = '%')
+            else:
+                cur.execute(queries.gbif_species_country, {'species': sciname['species'], 'countrycode': country['countrycode']})
             logger1.debug(cur.query)
             allcandidates = pd.DataFrame(cur.fetchall())
             logger1.info("No. of GBIF candidates for species: {}".format(len(allcandidates)))
