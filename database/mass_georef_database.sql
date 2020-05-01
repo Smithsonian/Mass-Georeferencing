@@ -93,6 +93,7 @@ CREATE TABLE mg_occurrences
     waterbody text,
     islandgroup text,
     island text,
+    countryverbatim text,
     countrycode text,
     stateprovince text,
     county text,
@@ -178,6 +179,7 @@ CREATE INDEX mg_occurrences_source_idx ON mg_occurrences USING BTREE(occurrence_
 CREATE INDEX mg_occurrences_decimallatitude_idx ON mg_occurrences(decimallatitude) WHERE decimallatitude IS NULL;
 CREATE INDEX mg_occurrences_decimallon_idx ON mg_occurrences(decimallongitude) WHERE decimallongitude IS NULL;
 CREATE INDEX mg_occurrences_ccode_idx ON mg_occurrences USING BTREE(countrycode);
+CREATE INDEX mg_occurrences_countverb_idx ON mg_occurrences USING BTREE(countryverbatim);
 CREATE INDEX mg_occurrences_state_idx ON mg_occurrences USING BTREE(stateprovince);
 CLUSTER mg_occurrences USING mg_occurrences_sp_idx;
 
@@ -293,3 +295,26 @@ EXCEPTION WHEN OTHERS THEN
   return false;
 END;
 $$ language plpgsql;
+
+
+
+
+--Selected candidate
+--mg_selected_candidates
+DROP TABLE IF EXISTS mg_selected_candidates CASCADE;
+CREATE TABLE mg_selected_candidates
+(
+    mg_selected_candidates_id serial PRIMARY KEY,
+    candidate_id uuid REFERENCES mg_candidates(candidate_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    recgroup_id uuid REFERENCES mg_recordgroups(recgroup_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    point_or_polygon text DEFAULT 'point',
+    uncertainty_m float DEFAULT NULL,
+    updated_at timestamp with time zone DEFAULT NOW());
+CREATE INDEX mg_selcandidates_rgid_idx ON mg_selected_candidates USING BTREE(candidate_id);
+CREATE INDEX mg_selcandidates_rid_idx ON mg_selected_candidates USING BTREE(recgroup_id);
+CREATE INDEX mg_selcandidates_id_idx ON mg_selected_candidates USING BTREE(mg_selected_candidates_id);
+
+CREATE TRIGGER trigger_updated_at_mg_selected_candidates
+  BEFORE UPDATE ON mg_selected_candidates
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();

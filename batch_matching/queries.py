@@ -68,6 +68,40 @@ geonames = """
         SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
             """
 
+wikidata_by_country = """
+        WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records WHERE gadm2 ILIKE '%{country}%'
+            UNION
+            SELECT r.uid, n.name, r.gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records r, wikidata_names n WHERE r.source_id = n.source_id gadm2 ILIKE '%{country}%'
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
+            """
+
+wikidata_all = """
+        WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records
+            UNION
+            SELECT r.uid, n.name, r.gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records r, wikidata_names n WHERE r.source_id = n.source_id
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
+            """
+
+
+osm_by_country = """
+        WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'osm' AS data_source FROM osm WHERE gadm2 ILIKE '%{country}%'
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
+            """
+
+osm_all = """
+        WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'osm' AS data_source FROM osm
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source
+            """
+
+
 recordgroups_stats = """WITH stats AS (
                             SELECT 
                                 recgroup_id, 

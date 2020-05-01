@@ -18,7 +18,12 @@ import psycopg2, psycopg2.extras
 from psycopg2.extras import execute_batch
 
 
-#Get settings
+#Get queries from batch_matching folder
+sys.path.append("../batch_matching")
+
+import queries
+
+
 import settings
 
 
@@ -34,7 +39,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 current_time = strftime("%Y%m%d_%H%M%S", localtime())
 
 if not os.path.exists('logs'):
-    os.makedirs('logs')
+    os.mkdir('logs')
 
 logfile_name = 'logs/{}.log'.format(current_time)
 # from http://stackoverflow.com/a/9321890
@@ -61,6 +66,7 @@ try:
 except:
     logger1.error("Could not connect to server.")
     sys.exit(1)
+
 conn.autocommit = True
 cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
 
@@ -70,7 +76,7 @@ cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
 print("GADM")
 if os.path.exists('gadm'):
     shutil.rmtree('gadm')
-os.makedirs('gadm')
+os.mkdir('gadm')
 countries_query = "SELECT name_0 AS country FROM gadm0"
 cur.execute(countries_query)
 logger1.debug(cur.query)
@@ -114,7 +120,7 @@ for country in countries:
 print("WDPA")
 if os.path.exists('wdpa'):
     shutil.rmtree('wdpa')
-os.makedirs('wdpa')
+os.mkdir('wdpa')
 countries_query = "SELECT DISTINCT unnest(string_to_array(parent_iso, ';')) AS country FROM wdpa_polygons"
 cur.execute(countries_query)
 logger1.debug(cur.query)
@@ -147,7 +153,7 @@ for country in countries:
 print("GNIS")
 if os.path.exists('gnis'):
     shutil.rmtree('gnis')
-os.makedirs('gnis')
+os.mkdir('gnis')
 cur.execute("SELECT uid, full_name_nd_ro AS name, gadm2 AS stateprovince, 'gns' AS data_source FROM gns")
 logger1.debug(cur.query)
 records = pd.DataFrame(cur.fetchall())
@@ -161,7 +167,7 @@ records.to_csv("gnis/gnis_USA.csv", index=False, quoting = csv.QUOTE_ALL)
 print("GNS")
 if os.path.exists('gns'):
     shutil.rmtree('gns')
-os.makedirs('gns')
+os.mkdir('gns')
 countries_query = "SELECT DISTINCT unnest(string_to_array(cc1, ',')) AS country FROM gns"
 cur.execute(countries_query)
 logger1.debug(cur.query)
@@ -185,7 +191,7 @@ for country in countries:
 print("Global Lakes")
 if os.path.exists('gl'):
     shutil.rmtree('gl')
-os.makedirs('gl')
+os.mkdir('gl')
 countries_query = "SELECT DISTINCT country FROM global_lakes"
 cur.execute(countries_query)
 logger1.debug(cur.query)
@@ -210,7 +216,7 @@ for country in countries:
 print("Geonames")
 if os.path.exists('geonames'):
     shutil.rmtree('geonames')
-os.makedirs('geonames')
+os.mkdir('geonames')
 countries_query = "SELECT DISTINCT country_code AS country FROM geonames where country_code != ''"
 cur.execute(countries_query)
 logger1.debug(cur.query)
@@ -236,6 +242,62 @@ for country in countries:
 
 
 
+
+
+#Wikidata
+print("Wikidata")
+if os.path.exists('wikidata'):
+    shutil.rmtree('wikidata')
+os.mkdir('wikidata')
+countries_query = "SELECT DISTINCT country FROM wikidata_records"
+cur.execute(countries_query)
+logger1.debug(cur.query)
+countries = cur.fetchall()
+for country in countries:
+    #Get records for the country
+    gadm_query = """WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records WHERE gadm2 ILIKE '%{country}%'
+            UNION
+            SELECT r.uid, n.name, r.gadm2 AS stateprovince, 'wikidata' AS data_source FROM wikidata_records r, wikidata_names n WHERE r.source_id = n.source_id AND gadm2 ILIKE '%{country}%'
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source"""
+    cur.execute(gadm_query.format(country = country['country'].replace("'", "''")))
+    logger1.debug(cur.query)
+    records = pd.DataFrame(cur.fetchall())
+    print(country['country'])
+    if pycountry.countries.get(name = country['country']) != None:
+        records.to_csv("wikidata/wikidata_{}.csv".format(
+                    pycountry.countries.get(name = country['country']).alpha_3
+        ), index=False, quoting = csv.QUOTE_ALL)
+
+
+
+
+#OSM
+print("OSM")
+if os.path.exists('osm'):
+    shutil.rmtree('osm')
+os.mkdir('osm')
+countries_query = "SELECT DISTINCT country FROM osm"
+cur.execute(countries_query)
+logger1.debug(cur.query)
+countries = cur.fetchall()
+for country in countries:
+    #Get records for the country
+    gadm_query = """WITH data AS (
+            SELECT uid, name, gadm2 AS stateprovince, 'osm' AS data_source FROM wikidata_records WHERE gadm2 ILIKE '%{country}%'
+            UNION
+            SELECT r.uid, n.name, r.gadm2 AS stateprovince, 'osm' AS data_source FROM wikidata_records r, wikidata_names n WHERE r.source_id = n.source_id AND gadm2 ILIKE '%{country}%'
+            )
+        SELECT uid, name, stateprovince, data_source FROM data GROUP BY uid, name, stateprovince, data_source"""
+    cur.execute(gadm_query.format(country = country['country']))
+    logger1.debug(cur.query)
+    records = pd.DataFrame(cur.fetchall())
+    print(country['country'])
+    if pycountry.countries.get(name = country['country']) != None:
+        records.to_csv("osm/osm_{}.csv".format(
+                    pycountry.countries.get(name = country['country']).alpha_3
+        ), index=False, quoting = csv.QUOTE_ALL)
 
 
 sys.exit(0)

@@ -6,19 +6,19 @@ from flask import Flask, jsonify, request
 from flask import Response
 from flask import render_template
 from flask import send_file
-import io
 import simplejson as json
-import psycopg2, os, operator, logging, sys, math, edan, locale
+import psycopg2, os, logging, sys, math, locale
 import psycopg2.extras
-#import collections
 from uuid import UUID
-import numpy as np
-import pandas as pd
+#import numpy as np
+#import pandas as pd
 #For parallel
 import multiprocessing as mp
 from functools import partial
-from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
+#from fuzzywuzzy import fuzz
+#from fuzzywuzzy import process
+
+#import collections, operator, io
 
 
 api_ver = "0.1"
@@ -50,34 +50,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 #Import settings
 import settings
 
-
 app = Flask(__name__)
-
-
-
-#Parallel query edan
-def query_edan(i, scientificname):
-    df = []
-    res = edan.searchEDAN(edan_query = scientificname, AppID = settings.AppID, AppKey = settings.AppKey, rows = 100, start = (i * 100))
-    if len(res['rows']) > 0:
-        for j in range(0, len(res['rows'])):
-            try:
-                for k in range(0, len(res['rows'][j]['content']['freetext']['place'])):
-                    locality = res['rows'][j]['content']['freetext']['place'][k]['content'].encode('UTF-8')
-                    if locality == "" or locality == None:
-                        continue
-                    else:
-                        for s in range(0, len(res['rows'][j]['content']['indexedStructured']['scientific_name'])):
-                            sciname = res['rows'][j]['content']['indexedStructured']['scientific_name'][s].encode('UTF-8')
-                            if sciname == "" or sciname == None:
-                                continue
-                            else:
-                                df.append((sciname, locality))
-                                logging.info(cur.query)
-                                conn.commit()
-            except:
-                continue
-    return df
 
 
 
@@ -105,13 +78,29 @@ def handle_invalid_usage(error):
 
 
 
+@app.errorhandler(404)
+def page_not_found(e):
+    logging.error(e)
+    data = json.dumps({'error': "route not found"})
+    return Response(data, mimetype='application/json'), 404
+
+
+
+@app.errorhandler(500)
+def page_not_found(e):
+    logging.error(e)
+    data = json.dumps({'error': "system error"})
+    return Response(data, mimetype='application/json'), 500
+
+
+
 def apikey():
     headers = request.headers
     #Temp for dev
     if request.access_route[0] == settings.allow_ip:
         logging.info("Allowing IP " + request.access_route[0])
         return True
-    if request.method == 'GET':
+    if request.method == 'POST':
         auth = headers.get("X-Api-Key")
     else:
        auth = None 
@@ -137,12 +126,12 @@ def apikey():
     #Build query
     logging.info(auth)
     cur.execute(query_template, {'apikey': auth})
-    logging.info(cur.query)
+    logging.debug(cur.query)
     data = cur.fetchone()
     #Add counter
     referrer = headers.get("Referer")
     cur.execute("INSERT INTO apikeys_usage (key, referrer) VALUES (%(apikey)s, %(referrer)s)", {'apikey': auth, 'referrer': referrer})
-    logging.info(cur.query)
+    logging.debug(cur.query)
     conn.commit()
     cur.close()
     conn.close()
@@ -157,7 +146,7 @@ def apikey():
 
 
 
-@app.route('/api/routes')
+@app.route('/api/routes', methods=['GET', 'POST'])
 def routes_list():
     """Print available routes"""
     #Adapted from https://stackoverflow.com/a/17250154
@@ -169,8 +158,8 @@ def routes_list():
 
 
 
-@app.route('/api/')
-@app.route('/api')
+@app.route('/api/', methods=['GET', 'POST'])
+@app.route('/api', methods=['GET', 'POST'])
 def index():
     """Welcome message and API versions available"""
     data = json.dumps({'current_version': api_ver, 'reference_url': "https://confluence.si.edu/display/DPOI/Spatial+database+and+API", 'api_title': "OCIO DPO PostGIS API"})
@@ -178,35 +167,62 @@ def index():
 
 
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def home():
     """Homepage in HTML format"""
     return render_template('home.html')
 
 
 
-@app.route('/help')
+@app.route('/help', methods=['GET', 'POST'])
 def help():
     """Help page in HTML format"""
     return render_template('help.html')
 
 
 
-@app.route('/api/0.1/feature')
+@app.route('/data_sources', methods=['GET', 'POST'])
+def get_sources_html():
+    """Get the details of the data sources in HTML format."""
+    #API Key not needed
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT *, TO_CHAR(no_features, '999,999,999,999') as no_feat, TO_CHAR(source_date::date, 'dd Mon yyyy') as date_f FROM data_sources ORDER BY datasource_id ASC")
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    summary = sum(row['no_features'] for row in data)
+    summary = locale.format("%d", summary, grouping=True)
+    cur.close()
+    conn.close()
+    results = {}
+    results = data
+    return render_template('data_sources.html', data = results, summary = summary)
+
+
+
+@app.route('/api/feature', methods=['POST'])
 def get_feat_info():
     """Returns the attributes of a feature."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    uid = request.args.get('uid')
+    uid = request.form.get('uid')
     if uid == None:
         raise InvalidUsage('uid missing', status_code = 400)
     try:
         uid = UUID(uid, version = 4)
     except:
         raise InvalidUsage('uid is not a valid UUID', status_code = 400)
-    layer = request.args.get('layer')
+    layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
     #Connect to the database
@@ -234,7 +250,7 @@ def get_feat_info():
     #Build query
     #cur.execute(query_template.format(uid = uid, layer = layer, get_geometry = get_geometry))
     cur.execute(query_template.format(uid = uid, layer = layer))
-    logging.info(cur.query)
+    logging.debug(cur.query)
     if cur.rowcount == 0:
         cur.close()
         conn.close()
@@ -247,22 +263,21 @@ def get_feat_info():
 
 
 
-
-@app.route('/api/0.1/geom')
+@app.route('/api/geom', methods=['POST'])
 def get_geom():
     """Returns the geometry of a feature."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    uid = request.args.get('uid')
+    uid = request.form.get('uid')
     if uid == None:
         raise InvalidUsage('uid missing', status_code = 400)
     try:
         uid = UUID(uid, version = 4)
     except:
         raise InvalidUsage('uid is not a valid UUID', status_code = 400)
-    layer = request.args.get('layer')
+    layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
     #Connect to the database
@@ -291,7 +306,7 @@ def get_geom():
         query_template = f.read()
     #Build query
     cur.execute(query_template.format(uid = uid, layer = layer))
-    logging.info(cur.query)
+    logging.debug(cur.query)
     if cur.rowcount == 0:
         cur.close()
         conn.close()
@@ -304,17 +319,17 @@ def get_geom():
 
 
 
-@app.route('/api/0.1/species_range')
+@app.route('/api/species_range', methods=['POST'])
 def get_spprange():
     """Returns the range of a species. If there is no range, return the convex poly of GBIF points"""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    species = request.args.get('scientificname')
+    species = request.form.get('scientificname')
     if species == None:
         raise InvalidUsage('scientificname missing', status_code = 400)
-    range_type = request.args.get('type')
+    range_type = request.form.get('type')
     if range_type == None:
         range_type = "all"
     #Connect to the database
@@ -334,13 +349,13 @@ def get_spprange():
             query_template = f.read()
         #Build query
         cur.execute(query_template, {'species': species,})
-        logging.info(cur.query)
+        logging.debug(cur.query)
         if cur.rowcount == 0:
             with open('queries/get_convexhull.sql') as f:
                 query_template = f.read()
             #Build query
             cur.execute(query_template, {'species': species,})
-            logging.info(cur.query)
+            logging.debug(cur.query)
             if cur.rowcount == 0:
                 cur.close()
                 conn.close()
@@ -360,7 +375,7 @@ def get_spprange():
             query_template = f.read()
         #Build query
         cur.execute(query_template, {'species': species,})
-        logging.info(cur.query)
+        logging.debug(cur.query)
         if cur.rowcount == 0:
             cur.close()
             conn.close()
@@ -373,22 +388,22 @@ def get_spprange():
 
 
 
-@app.route('/api/0.1/species_range_dist')
+@app.route('/api/species_range_dist', methods=['POST'])
 def get_spprange_dist():
     """Returns the distance to the edge the range of a species. If there is no range, use the convex poly of GBIF points"""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    species = request.args.get('scientificname')
+    species = request.form.get('scientificname')
     if species == None:
         raise InvalidUsage('scientificname missing', status_code = 400)
-    lat = request.args.get('lat')
+    lat = request.form.get('lat')
     try:
         lat = float(lat)
     except:
         raise InvalidUsage('invalid lat value', status_code = 400)
-    lng = request.args.get('lng')
+    lng = request.form.get('lng')
     try:
         lng = float(lng)
     except:
@@ -408,7 +423,7 @@ def get_spprange_dist():
         query_template = f.read()
     #Build query
     cur.execute(query_template, {'species': species, 'lng': lng, 'lat': lat})
-    logging.info(cur.query)
+    logging.debug(cur.query)
     if cur.rowcount == 0:
         cur.close()
         conn.close()
@@ -421,30 +436,30 @@ def get_spprange_dist():
 
 
 
-@app.route('/api/0.1/intersection')
+@app.route('/api/intersection', methods=['POST'])
 def get_wdpa():
     """Returns the uid of the feature that intersects the lat and lon given."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    lat = request.args.get('lat')
+    lat = request.form.get('lat')
     try:
         lat = float(lat)
     except:
         raise InvalidUsage('invalid lat value', status_code = 400)
-    lng = request.args.get('lng')
+    lng = request.form.get('lng')
     try:
         lng = float(lng)
     except:
         raise InvalidUsage('invalid lng value', status_code = 400)
-    radius = request.args.get('radius')
+    radius = request.form.get('radius')
     if radius != None:
         try:
             radius = int(radius)
         except:
             raise InvalidUsage('invalid radius value', status_code = 400)
-    layer = request.args.get('layer')
+    layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
     #Connect to the database
@@ -472,7 +487,7 @@ def get_wdpa():
         #Build query
         try:
             cur.execute(query_template, {'lat': lat, 'lng': lng, 'layer': layer})
-            logging.info(cur.query)
+            logging.debug(cur.query)
         except:
             vals = {'lat': lat, 'lng': lng, 'layer': layer}
             logging.error(query_template, extra = vals)
@@ -484,7 +499,7 @@ def get_wdpa():
         #Build query
         try:
             cur.execute(query_template, {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius})
-            logging.info(cur.query)
+            logging.debug(cur.query)
         except:
             vals = {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius}
             logging.error(query_template, extra = vals)
@@ -502,82 +517,14 @@ def get_wdpa():
 
 
 
-# @app.route('/api/0.1/features_near')
-# def get_feat_near():
-#     """Returns the feature in layer that is closest to the coordinates provided."""
-#     #Check for valid API Key
-#     if apikey() == False:
-#         raise InvalidUsage('Unauthorized', status_code = 401)
-#     #Check inputs
-#     lat = request.args.get('lat')
-#     try:
-#         lat = float(lat)
-#     except:
-#         raise InvalidUsage('invalid lat value', status_code = 400)
-#     lng = request.args.get('lng')
-#     try:
-#         lng = float(lng)
-#     except:
-#         raise InvalidUsage('invalid lng value', status_code = 400)
-#     layer = request.args.get('layer')
-#     if layer == None:
-#         raise InvalidUsage('layer missing', status_code = 400)
-#     rows = request.args.get('rows')
-#     if rows != None:
-#         try:
-#             rows = int(rows)
-#         except:
-#             raise InvalidUsage('invalid rows value', status_code = 400)
-#     else:
-#         rows = 5
-#     #Connect to the database
-#     try:
-#         conn = psycopg2.connect(
-#                     host = settings.host,
-#                     database = settings.database,
-#                     user = settings.user,
-#                     password = settings.password)
-#     except psycopg2.Error as e:
-#         raise InvalidUsage('System error', status_code = 500)
-#     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-#     cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", layer)
-#     valid_layer = cur.fetchone()[0]
-#     if valid_layer == 0:
-#         raise InvalidUsage('layer does not exists', status_code = 400)
-#     cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer)s", layer)
-#     is_online = cur.fetchone()[0]
-#     if is_online == False:
-#         raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
-#     #Query file
-#     with open('queries/feature_nearest.sql') as f:
-#         query_template = f.read()
-#     #Build query
-#     try:
-#         cur.execute(query_template, {'lat': lat, 'lng': lng, 'rows': rows, 'layer': layer})
-#     except:
-#         cur.execute("ROLLBACK")
-#         conn.commit()
-#     logging.info(cur.query)
-#     if cur.rowcount > 0:
-#         data = cur.fetchall()
-#     else:
-#         data = None
-#     cur.close()
-#     conn.close()
-#     results = {}
-#     results['results'] = data
-#     return jsonify(results)
-
-
-
-@app.route('/api/0.1/all_names')
+@app.route('/api/all_names', methods=['POST'])
 def get_gadm_names():
     """Returns all names from the specified layer."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    layer = request.args.get('layer')
+    layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
     if layer not in ['gadm0', 'gadm1', 'gadm2', 'gadm3', 'gadm4', 'gadm5', 'wdpa_polygons', 'wdpa_points']:
@@ -612,7 +559,7 @@ def get_gadm_names():
             query_template = f.read()
         #Build query
         cur.execute(query_template.format(layer = layer))        
-    logging.info(cur.query)
+    logging.debug(cur.query)
     if cur.rowcount > 0:
         data = cur.fetchall()
     else:
@@ -624,14 +571,14 @@ def get_gadm_names():
 
 
 
-@app.route('/api/0.1/search')
+@app.route('/api/search', methods=['POST'])
 def search_names():
     """Search names in the databases for matches. Search is case insensitive."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
-    string = request.args.get('string')
+    string = request.form.get('string')
     if string == None:
         raise InvalidUsage('string missing', status_code = 400)
     #Connect to the database
@@ -650,7 +597,7 @@ def search_names():
         query_template = f.read()
     #Build query
     cur.execute(query_template, {'string': string})
-    logging.info(cur.query)
+    logging.debug(cur.query)
     if cur.rowcount > 0:
         data = cur.fetchall()
     else:
@@ -662,224 +609,7 @@ def search_names():
 
 
 
-# @app.route('/api/0.1/fuzzysearch')
-# def search_fuzzy():
-#     """Search localities in the databases for matches using fuzzywuzzy."""
-#     #Check for valid API Key
-#     if apikey() == False:
-#         raise InvalidUsage('Unauthorized', status_code = 401)
-#     #Check inputs
-#     locality = request.args.get('locality')
-#     if locality == None:
-#         raise InvalidUsage('locality missing', status_code = 400)
-#     scientificname = request.args.get('scientificname')
-#     if scientificname == None:
-#         raise InvalidUsage('scientificname missing', status_code = 400)
-#     db = request.args.get('database')
-#     if db == None:
-#         raise InvalidUsage('database missing', status_code = 400)
-#     #check threshold and that it is an integer
-#     threshold = request.args.get('threshold')
-#     if threshold == None:
-#         threshold = 80
-#     try:
-#         int(threshold)
-#     except:
-#         raise InvalidUsage('invalid threshold value', status_code = 400)
-#     #How to match
-#     method = request.args.get('method')
-#     if method == None:
-#         method = "partial"
-#     countrycode = request.args.get('countrycode')
-#     if countrycode == None:
-#         raise InvalidUsage('countrycode missing', status_code = 400)
-#     #Connect to the database
-#     try:
-#         conn = psycopg2.connect(
-#                     host = settings.host,
-#                     database = settings.database,
-#                     user = settings.user,
-#                     password = settings.password)
-#     except psycopg2.Error as e:
-#         raise InvalidUsage('System error', status_code = 500)
-#     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-#     #Query file
-#     results = {}
-#     if db == 'gbif':
-#         with open('queries/fuzzy_gbif.sql') as f:
-#             query_template = f.read()
-#         #Build query
-#         cur.execute(query_template, {'species': scientificname, 'countrycode': countrycode})
-#     # elif db == '':
-#     #     with open('queries/fuzzy_gbif.sql') as f:
-#     #         query_template = f.read()
-#     #     #Build query
-#     #     cur.execute(query_template, {'species': scientificname, 'countrycode': countrycode})
-#     # elif db == '':
-#     #     with open('queries/fuzzy_gbif.sql') as f:
-#     #         query_template = f.read()
-#     #     #Build query
-#     #     cur.execute(query_template, {'species': scientificname, 'countrycode': countrycode})
-#     # elif db == '':
-#     #     with open('queries/fuzzy_gbif.sql') as f:
-#     #         query_template = f.read()
-#     #     #Build query
-#     #     cur.execute(query_template, {'species': scientificname, 'countrycode': countrycode})
-#     else:
-#         raise InvalidUsage('invalid database', status_code = 400)
-#     #Build query
-#     logging.info(cur.query)
-#     if cur.rowcount > 0:
-#         data = pd.DataFrame(cur.fetchall())
-#         for index, row in data.iterrows():
-#             if method == "ratio":
-#                 data['score'][index] = fuzz.ratio(locality, row['locality'])
-#             elif method == "partial":
-#                 data['score'][index] = fuzz.partial_ratio(locality, row['locality'])
-#             elif method == "set":
-#                 data['score'][index] = fuzz.token_set_ratio(locality, row['locality'])
-#         data = data[data.score > threshold].to_json(orient='records')
-#     else:
-#         data = "[]"
-#     cur.close()
-#     conn.close()
-#     #return jsonify(data)
-#     return app.response_class(
-#         response=data,
-#         mimetype='application/json'
-#     )
-
-
-
-@app.route('/api/0.1/nmnh/botany_localities_gbif')
-def get_localities_gbif():
-    """Search localities in EDAN for a species."""
-    #Check for valid API Key
-    if apikey() == False:
-       raise InvalidUsage('Unauthorized', status_code = 401)
-    #Check inputs
-    sciname = request.args.get('scientificname')
-    country_code = request.args.get('country')
-    if sciname == None:
-        raise InvalidUsage('scientificname missing', status_code = 400)
-    if country_code == None:
-        country = ""
-    else:
-        country = "countryCode = '{}' AND".format(country_code)
-    try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
-    except psycopg2.Error as e:
-        raise InvalidUsage('System error', status_code = 500)
-    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    with open('queries/botany_gbif.sql') as f:
-        query_template = f.read()
-    #Build query
-    cur.execute(query_template.format(sciname = sciname, country = country))
-    logging.info(cur.query)
-    data = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(data)
-
-
-
-@app.route('/api/0.1/nmnh/botany_localities_edan')
-def get_localities_edan():
-    """Get localities from GBIF for a species."""
-    #Check for valid API Key
-    if apikey() == False:
-       raise InvalidUsage('Unauthorized', status_code = 401)
-    #Check inputs
-    scientificname = request.args.get('scientificname')
-    if scientificname == None:
-        raise InvalidUsage('scientificname missing', status_code = 400)
-    try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
-    except psycopg2.Error as e:
-        raise InvalidUsage('System error', status_code = 500)
-    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    #Delete rows older than 2 weeks
-    cur.execute("DELETE FROM edan_localities WHERE updated_at < NOW() - interval '2 week'")
-    logging.info(cur.query)
-    conn.commit()
-    #Check for results in the db already
-    cur.execute("SELECT count(*) as no_rows FROM edan_localities WHERE sciname ILIKE '%%{}%%'".format(scientificname))
-    logging.info(cur.query)
-    no_rows = cur.fetchone()['no_rows']
-    if no_rows == 0:
-        #Check for how many results EDAN has
-        logging.info("Checking EDAN")
-        results = edan.searchEDAN(edan_query = scientificname, AppID = settings.AppID, AppKey = settings.AppKey, rows = 1)
-        no_results = results['rowCount']
-        results_steps = math.ceil(no_results / 100)
-        pool = mp.Pool(settings.no_workers)
-        result = pool.map(partial(query_edan, scientificname=scientificname), range(0, results_steps))
-        #results = []
-        for i in range(0, results_steps):
-            for j in range(0, len(result[i])):
-                #results.append(result[i][j])
-                cur.execute("INSERT INTO edan_localities (sciname, locality) VALUES ('{}', '{}') ON CONFLICT (sciname, locality) DO UPDATE SET updated_at = NOW()".format(result[i][j][0].decode('UTF-8').replace("'", "''"), result[i][j][1].decode('UTF-8').replace("'", "''")))
-                logging.info(cur.query)
-                conn.commit()
-        #return results.to_json(force_ascii = False, lines=False, orient='values')
-    else:
-        logging.info("Returning rows from database")
-    cur.execute("SELECT sciname, locality FROM edan_localities WHERE sciname ILIKE '%%{}%%'".format(scientificname))
-    logging.info(cur.query)
-    results = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(results)
-
-
-
-# @app.route('/api/0.1/alt_names')
-# def get_altnames():
-#     """Check alternative names for a location."""
-#     #Check for valid API Key
-#     if apikey() == False:
-#         raise InvalidUsage('Unauthorized', status_code = 401)
-#     #Check inputs
-#     location_name = request.args.get('location_name')
-#     lang = request.args.get('lang')
-#     if location_name == None:
-#         raise InvalidUsage('location_name can not be empty.', status_code = 400)
-#     try:
-#         conn = psycopg2.connect(
-#                     host = settings.host,
-#                     database = settings.database,
-#                     user = settings.user,
-#                     password = settings.password)
-#     except psycopg2.Error as e:
-#         raise InvalidUsage('System error', status_code = 500)
-#     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-#     if lang == None:
-#         with open('queries/get_altnames.sql') as f:
-#             query_template = f.read()
-#         #Build query
-#         cur.execute(query_template, {'location_name': location_name})
-#     else:
-#         with open('queries/get_altnames_lang.sql') as f:
-#             query_template = f.read()
-#         #Build query
-#         cur.execute(query_template, {'location_name': location_name, 'lang': lang})
-#     logging.info(cur.query)
-#     data = cur.fetchall()
-#     cur.close()
-#     conn.close()
-#     return jsonify(data)
-
-
-
-@app.route('/api/0.1/data_sources')
+@app.route('/api/data_sources', methods=['POST'])
 def get_sources():
     """Get the details of the data sources in JSON."""
     #API Key not needed
@@ -894,7 +624,7 @@ def get_sources():
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
     cur.execute("SELECT * FROM data_sources")
-    logging.info(cur.query)
+    logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
     conn.close()
@@ -902,34 +632,8 @@ def get_sources():
 
 
 
-@app.route('/data_sources')
-def get_sources_html():
-    """Get the details of the data sources in HTML format."""
-    #API Key not needed
-    try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
-    except psycopg2.Error as e:
-        raise InvalidUsage('System error', status_code = 500)
-    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    #Build query
-    cur.execute("SELECT *, TO_CHAR(no_features, '999,999,999,999') as no_feat, TO_CHAR(source_date::date, 'dd Mon yyyy') as date_f FROM data_sources ORDER BY datasource_id ASC")
-    logging.info(cur.query)
-    data = cur.fetchall()
-    summary = sum(row['no_features'] for row in data)
-    summary = locale.format("%d", summary, grouping=True)
-    cur.close()
-    conn.close()
-    results = {}
-    results = data
-    return render_template('data_sources.html', data = results, summary = summary)
-
-
-
-@app.route('/mdpp/previewimage')
+#MassDigi-specific routes
+@app.route('/mdpp/previewimage', methods=['GET'])
 def get_preview():
     """Return image previews from Mass Digi Projects."""
     file_id = request.args.get('file_id')
@@ -940,22 +644,241 @@ def get_preview():
     if os.path.isfile(filename) == False:
         filename = "static/na.jpg"
     return send_file(filename, mimetype='image/jpeg')
+    
 
 
 
-@app.errorhandler(404)
-def page_not_found(e):
-    logging.error(e)
-    data = json.dumps({'error': "route not found"})
-    return Response(data, mimetype='application/json'), 404
+#Mass Georeferencing routes
+@app.route('/mg/all_collex', methods=['POST'])
+def get_collex():
+    """Get all collex available for MG."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT * FROM mg_collex")
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
 
 
 
-@app.errorhandler(500)
-def page_not_found(e):
-    logging.error(e)
-    data = json.dumps({'error': "system error"})
-    return Response(data, mimetype='application/json'), 500
+@app.route('/mg/collex_info', methods=['POST'])
+def get_collexinfo():
+    """Get all collex available for MG."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    collex_id = request.form.get('collex_id')
+    if collex_id == None:
+        raise InvalidUsage('Missing collex_id', status_code = 400)
+    try:
+        collex_id = UUID(collex_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT * FROM mg_collex WHERE collex_id = '{collex_id}'::UUID".format(collex_id = collex_id))
+    logging.debug(cur.query)
+    data = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+@app.route('/mg/collex_species', methods=['POST'])
+def get_collex_spp():
+    """Get all species available for a collex for MG."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    collex_id = request.form.get('collex_id')
+    if collex_id == None:
+        raise InvalidUsage('Missing collex_id', status_code = 400)
+    try:
+        collex_id = UUID(collex_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT DISTINCT species FROM mg_recordgroups WHERE collex_id = '{collex_id}'::uuid AND no_candidates > 0".format(collex_id = collex_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+
+@app.route('/mg/species_recgroups', methods=['POST'])
+def get_spp_recgroups():
+    """Get all record groups for a species."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    species = request.form.get('species')
+    if species == None:
+        raise InvalidUsage('species missing', status_code = 400)
+    collex_id = request.form.get('collex_id')
+    if collex_id == None:
+        raise InvalidUsage('Missing collex_id', status_code = 400)
+    try:
+        collex_id = UUID(collex_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT * FROM mg_recordgroups WHERE species = '{species}' AND collex_id = '{collex_id}' AND no_candidates > 0 ORDER BY locality ASC, no_records DESC".format(species = species, collex_id = collex_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+@app.route('/mg/recgroups_records', methods=['POST'])
+def get_recgroups_records():
+    """Get all record groups for a species."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    recgroup_id = request.form.get('recgroup_id')
+    if recgroup_id == None:
+        raise InvalidUsage('Missing recgroup_id', status_code = 400)
+    try:
+        recgroup_id = UUID(recgroup_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT mg_occurrenceid, occurrenceid, eventdate, locality, countrycode, higherclassification, recordedby FROM mg_occurrences WHERE mg_occurrenceid IN (SELECT mg_occurrenceid FROM mg_records WHERE recgroup_id = '{recgroup_id}'::uuid)".format(recgroup_id = recgroup_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+@app.route('/mg/candidates', methods=['POST'])
+def get_candidates():
+    """Get all record groups for a species."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    recgroup_id = request.form.get('recgroup_id')
+    if recgroup_id == None:
+        raise InvalidUsage('Missing recgroup_id', status_code = 400)
+    try:
+        recgroup_id = UUID(recgroup_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
+    species = request.form.get('species')
+    if species == None:
+        raise InvalidUsage('Missing species', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Query file
+    with open('queries/get_candidates.sql') as f:
+        query_template = f.read()
+    #Build query
+    cur.execute(query_template.format(species = species, recgroup_id = recgroup_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+@app.route('/mg/candidate_info', methods=['POST'])
+def get_candidate_info():
+    """Get all record groups for a species."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    candidate_id = request.form.get('candidate_id')
+    if candidate_id == None:
+        raise InvalidUsage('Missing candidate_id', status_code = 400)
+    try:
+        candidate_id = UUID(candidate_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid candidate_id key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '{candidate_id}'::uuid GROUP BY score_type, score ORDER BY score_type".format(candidate_id = candidate_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
 
 
 
