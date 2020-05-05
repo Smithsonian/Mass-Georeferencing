@@ -273,13 +273,14 @@ def get_geom():
     uid = request.form.get('uid')
     if uid == None:
         raise InvalidUsage('uid missing', status_code = 400)
-    try:
-        uid = UUID(uid, version = 4)
-    except:
-        raise InvalidUsage('uid is not a valid UUID', status_code = 400)
     layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
+    if layer != "gbif":
+        try:
+            uid = UUID(uid, version = 4)
+        except:
+            raise InvalidUsage('uid is not a valid UUID', status_code = 400)
     #Connect to the database
     try:
         conn = psycopg2.connect(
@@ -823,6 +824,12 @@ def get_candidates():
         recgroup_id = UUID(recgroup_id, version=4)
     except: 
         raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
+    candidate_id = request.form.get('candidate_id')
+    if candidate_id != None:
+        try:
+            candidate_id = UUID(candidate_id, version=4)
+        except: 
+            raise InvalidUsage('Invalid candidate_id key, it must be a valid UUID.', status_code = 400)
     species = request.form.get('species')
     if species == None:
         raise InvalidUsage('Missing species', status_code = 400)
@@ -836,10 +843,47 @@ def get_candidates():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Query file
-    with open('queries/get_candidates.sql') as f:
-        query_template = f.read()
+    if candidate_id == None:
+        with open('queries/get_candidates.sql') as f:
+            query_template = f.read()
+        cur.execute(query_template.format(species = species, recgroup_id = recgroup_id))
+    else:
+        with open('queries/get_candidate.sql') as f:
+            query_template = f.read()
+        cur.execute(query_template.format(species = species, candidate_id = candidate_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+@app.route('/mg/candidate_scores', methods=['POST'])
+def get_candidate_scores():
+    """Get all record groups for a species."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    candidate_id = request.form.get('candidate_id')
+    if candidate_id == None:
+        raise InvalidUsage('Missing candidate_id', status_code = 400)
+    try:
+        candidate_id = UUID(candidate_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid candidate_id key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute(query_template.format(species = species, recgroup_id = recgroup_id))
+    cur.execute("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '{candidate_id}'::uuid GROUP BY score_type, score ORDER BY score_type".format(candidate_id = candidate_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -872,7 +916,41 @@ def get_candidate_info():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '{candidate_id}'::uuid GROUP BY score_type, score ORDER BY score_type".format(candidate_id = candidate_id))
+    cur.execute("SELECT * FROM mg_candidates WHERE candidate_id = '{candidate_id}'::uuid".format(candidate_id = candidate_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+@app.route('/mg/get_gbif_record', methods=['POST'])
+def get_gbif_record():
+    """Get single GBIF record."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    uid = request.form.get('uid')
+    if uid == None:
+        raise InvalidUsage('Missing uid', status_code = 400)
+    species = request.form.get('species')
+    if species == None:
+        raise InvalidUsage('Missing species', status_code = 400)
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    with open('queries/get_gbif.sql') as f:
+            query_template = f.read()
+    cur.execute(query_template.format(species = species, uid = uid))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()

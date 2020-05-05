@@ -9,7 +9,7 @@ WITH score AS (
       mg_candidates c LEFT JOIN 
       mg_candidates_scores s ON (c.candidate_id = s.candidate_id)
     WHERE 
-      c.recgroup_id = '{recgroup_id}'::uuid
+      c.candidate_id = '{candidate_id}'::uuid
     GROUP BY 
       c.candidate_id,
       c.data_source,

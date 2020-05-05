@@ -13,6 +13,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_0 as located_at,
 	'gadm0' as layer
 FROM
 	gadm0
@@ -37,6 +38,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_0 as located_at,
 	'gadm1' as layer
 FROM
 	gadm1
@@ -61,6 +63,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_1 || ', ' || name_0 as located_at,
 	'gadm2' as layer
 FROM
 	gadm2
@@ -85,6 +88,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm3' as layer
 FROM
 	gadm3
@@ -109,6 +113,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm4' as layer
 FROM
 	gadm4
@@ -133,6 +138,7 @@ SELECT
 	st_ymin(the_geom_simp) as ymin,
 	st_ymax(the_geom_simp) as ymax,
 	'polygon' as geom_type,
+	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm5' as layer
 FROM
 	gadm5
@@ -157,6 +163,7 @@ SELECT
 	st_y((ST_Dump(w.the_geom)).geom) as ymin,
 	st_y((ST_Dump(w.the_geom)).geom) as ymax,
 	'point' as geom_type,
+	gadm2 as located_at,
 	'wdpa_points' as layer
 FROM
 	wdpa_points w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)
@@ -181,6 +188,7 @@ SELECT
 	st_ymin(w.the_geom) as ymin,
 	st_ymax(w.the_geom) as ymax,
 	'polygon' as geom_type,
+	gadm2 as located_at,
 	'wdpa_polygons' as layer
 FROM
 	wdpa_polygons w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)
@@ -205,6 +213,7 @@ SELECT
 	st_ymin(the_geom) as ymin,
 	st_ymax(the_geom) as ymax,
 	'polygon' as geom_type,
+	gadm2 as located_at,
 	'global_lakes' as layer
 FROM
 	global_lakes
@@ -229,6 +238,7 @@ SELECT
 	st_y(the_geom) as ymin,
 	st_y(the_geom) as ymax,
 	'point' as geom_type,
+	gadm2 as located_at,
 	'geonames' as layer
 FROM
 	geonames g
@@ -257,6 +267,7 @@ SELECT
 	st_y(the_geom) as ymin,
 	st_y(the_geom) as ymax,
 	'point' as geom_type,
+	gadm2 as located_at,
 	'gnis' as layer
 FROM
 	gnis
@@ -282,6 +293,7 @@ SELECT
 	st_y(the_geom) as ymin,
 	st_y(the_geom) as ymax,
 	'point' as geom_type,
+	gadm2 as located_at,
 	'gns' as layer
 FROM
 	gns
