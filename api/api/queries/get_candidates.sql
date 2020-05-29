@@ -27,7 +27,8 @@ WITH score AS (
     decimallatitude as latitude,
     m.gbifid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    CASE WHEN m.coordinateuncertaintyinmeters = '' THEN NULL ELSE m.coordinateuncertaintyinmeters::numeric END as uncertainty_m
   FROM 
     score s,                                  
     gbif m
@@ -48,7 +49,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                                  
     gadm1 m
@@ -68,7 +70,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                                  
     gadm2 m
@@ -88,7 +91,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                                  
     gadm3 m
@@ -108,7 +112,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                                  
     gadm4 m
@@ -128,7 +133,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                                  
     gadm5 m
@@ -148,7 +154,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                               
     wdpa_polygons m
@@ -168,7 +175,8 @@ WITH score AS (
     st_y(m.the_geom)::numeric as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    NULL as uncertainty_m
   FROM 
     score s,                               
     wdpa_points m
@@ -188,7 +196,8 @@ WITH score AS (
     round(st_y(m.centroid)::numeric, 5) as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
   FROM 
     score s,                               
     global_lakes m
@@ -208,7 +217,8 @@ WITH score AS (
     lat::numeric as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    NULL as uncertainty_m
   FROM 
     score s,                               
     gns m
@@ -228,7 +238,8 @@ WITH score AS (
     prim_lat_dec::numeric as latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    NULL as uncertainty_m
   FROM 
     score s,                               
     gnis m
@@ -248,10 +259,32 @@ WITH score AS (
     latitude,
     m.uid::text as feature_id,
     s.candidate_id,
-    s.no_features
+    s.no_features,
+    NULL as uncertainty_m
   FROM 
     score s,                               
     geonames m
   WHERE 
     s.feature_id::uuid = m.uid AND
     s.data_source = 'geonames'
+
+  UNION
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.gadm2 as located_at,
+    m.type,
+    round(st_x(m.centroid)::numeric, 5) as longitude,
+    round(st_y(m.centroid)::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    NULL as uncertainty_m
+  FROM 
+    score s,                               
+    osm m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'osm'

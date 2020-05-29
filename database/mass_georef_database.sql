@@ -318,3 +318,49 @@ CREATE TRIGGER trigger_updated_at_mg_selected_candidates
   BEFORE UPDATE ON mg_selected_candidates
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
+
+
+
+
+--Selected candidate
+--mg_recgrp_candidate_selected
+DROP TABLE IF EXISTS mg_recgrp_candidate_selected CASCADE;
+CREATE TABLE mg_recgrp_candidate_selected
+(
+    table_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    recgroup_id uuid REFERENCES mg_recordgroups(recgroup_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    candidate_id uuid REFERENCES mg_candidates(candidate_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+
+CREATE INDEX mg_rgcand_id_idx ON mg_recgrp_candidate_selected USING BTREE(table_id);
+CREATE INDEX mg_rgcand_cid_idx ON mg_recgrp_candidate_selected USING BTREE(collex_id);
+CREATE INDEX mg_rgcand_rid_idx ON mg_recgrp_candidate_selected USING BTREE(recgroup_id);
+CREATE INDEX mg_rgcand_candid_idx ON mg_recgrp_candidate_selected USING BTREE(candidate_id);
+
+
+CREATE TRIGGER trigger_updated_at_mg_recgrp
+  BEFORE UPDATE ON mg_recgrp_candidate_selected
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
+
+
+
+--Types of scores
+--mg_scoretypes
+DROP TABLE IF EXISTS mg_scoretypes CASCADE;
+CREATE TABLE mg_scoretypes
+(
+    scoretype text NOT NULL PRIMARY KEY,
+    score_info text NOT NULL,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+
+CREATE INDEX mg_scrtype_st_idx ON mg_scoretypes USING BTREE(scoretype);
+
+CREATE TRIGGER trigger_updated_at_mg_scoretypes
+  BEFORE UPDATE ON mg_scoretypes
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();

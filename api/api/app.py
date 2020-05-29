@@ -818,13 +818,14 @@ def get_candidates():
         raise InvalidUsage('Unauthorized', status_code = 401)
     #Check inputs
     recgroup_id = request.form.get('recgroup_id')
-    if recgroup_id == None:
-        raise InvalidUsage('Missing recgroup_id', status_code = 400)
-    try:
-        recgroup_id = UUID(recgroup_id, version=4)
-    except: 
-        raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
     candidate_id = request.form.get('candidate_id')
+    if recgroup_id == None and candidate_id == None:
+        raise InvalidUsage('Missing recgroup_id or candidate_id', status_code = 400)
+    if recgroup_id != None:
+        try:
+            recgroup_id = UUID(recgroup_id, version=4)
+        except: 
+            raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
     if candidate_id != None:
         try:
             candidate_id = UUID(candidate_id, version=4)
@@ -883,7 +884,7 @@ def get_candidate_scores():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT score_type, score FROM mg_candidates_scores WHERE candidate_id = '{candidate_id}'::uuid GROUP BY score_type, score ORDER BY score_type".format(candidate_id = candidate_id))
+    cur.execute("SELECT s.score_type, s.score, t.score_info FROM mg_candidates_scores s LEFT JOIN mg_scoretypes t ON (s.score_type = t.scoretype) WHERE s.candidate_id = '{candidate_id}'::uuid GROUP BY s.score_type, s.score, t.score_info ORDER BY score_type".format(candidate_id = candidate_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -956,6 +957,33 @@ def get_gbif_record():
     cur.close()
     conn.close()
     return jsonify(data)
+
+
+
+@app.route('/mg/get_scoretypes', methods=['POST'])
+def get_scoretypes():
+    """Get score types used in the matching."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #No inputs, other than api key
+    try:
+        conn = psycopg2.connect(
+                    host = settings.host,
+                    database = settings.database,
+                    user = settings.user,
+                    password = settings.password)
+    except psycopg2.Error as e:
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT * FROM mg_scoretypes")
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
 
 
 
