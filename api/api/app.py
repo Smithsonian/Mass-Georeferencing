@@ -276,11 +276,15 @@ def get_geom():
     layer = request.form.get('layer')
     if layer == None:
         raise InvalidUsage('layer missing', status_code = 400)
-    if layer != "gbif":
+    if layer[:4] != "gbif":
         try:
             uid = UUID(uid, version = 4)
         except:
             raise InvalidUsage('uid is not a valid UUID', status_code = 400)
+    else:
+        species = request.form.get('species')
+        if species == None:
+            raise InvalidUsage('species missing', status_code = 400)            
     #Connect to the database
     try:
         conn = psycopg2.connect(
@@ -303,10 +307,16 @@ def get_geom():
     #Query file
     #--using World Equidistant Cylindrical
     #   round((ST_MinimumBoundingRadius(st_transform(the_geom, '+proj=eqc +lat_ts=60 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs '))).radius) as min_bound_radius_m
-    with open('queries/get_geom.sql') as f:
-        query_template = f.read()
-    #Build query
-    cur.execute(query_template.format(uid = uid, layer = layer))
+    if layer[:4] != "gbif":
+        with open('queries/get_geom.sql') as f:
+            query_template = f.read()
+        #Build query
+        cur.execute(query_template.format(uid = uid, layer = layer))
+    else:
+        with open('queries/get_geom_gbif.sql') as f:
+            query_template = f.read()
+        #Build query
+        cur.execute(query_template.format(uid = uid, species = species))
     logging.debug(cur.query)
     if cur.rowcount == 0:
         cur.close()
