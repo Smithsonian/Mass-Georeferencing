@@ -39,7 +39,10 @@ vignettes/*.pdf
 .Renviron
 
 settings.py
+settings.pyc
 settings.R
 
 *.log
 *.Rproj
+
+__pycache__

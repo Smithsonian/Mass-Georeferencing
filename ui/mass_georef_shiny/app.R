@@ -518,7 +518,7 @@ server <- function(input, output, session) {
            if (results$data_source[i] %in% gadm_layers){
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-flag pull-right\" aria-hidden=\"true\" title = \"Political locality from GADM\"></span>")
            }else if (results$data_source[i] == "gbif.species"){
-             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-map-marker pull-right\" aria-hidden=\"true\" title = \"Locality from a GBIF record for the species\"></span>")
+             results$name[i] <- paste0(results$name[i], "<img src=\"gbif_logo.png\" title = \"Locality from a GBIF record for the species\" alt = \"Locality from a GBIF record for the species\" height = \"16px\" class=\"pull-right\">")
            }else if (results$data_source[i] == "gbif.genus"){
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-map-marker pull-right\" aria-hidden=\"true\" title = \"Locality from a GBIF record for the genus\"></span>")
            }else if (results$data_source[i] == "gbif.family"){
@@ -553,7 +553,10 @@ server <- function(input, output, session) {
       })
       
       output$map_header <- renderUI({
-        h4("Map of the species distribution and candidate matches:")
+        tagList(
+          h4("Map of the species distribution and candidate matches:"),
+          HTML("<em>Click on the map to create a new locality - turn off buffers to create a point in that area</em>")
+        )
       })
       
       if (dim(results_table)[1]==1){
@@ -617,11 +620,19 @@ server <- function(input, output, session) {
   
   # candidatematches_rows_selected react ----
   observeEvent(input$candidatematches_rows_selected, {
+    
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
     recgrp_id <- query['recgrp_id']
     collex_id <- query['collex_id']
     candidate_id <- query['candidate_id']
+    
+    if (candidate_id != "NULL" && input$candidatematches_rows_selected == "NULL"){
+      #Unselected row
+      output$main <- renderUI({
+        HTML(paste0("<script>$(location).attr('href', './?collex_id=", collex_id, "&species=", species, "&recgrp_id=", recgrp_id, "')</script>"))
+      })
+    }
     
     candidates <- session$userData$candidates
     candidate_selected <- candidates[input$candidatematches_rows_selected,]
@@ -682,7 +693,7 @@ server <- function(input, output, session) {
       selectPage(c(which_page))
     
     candidate_selected <- candidates[candidates$candidate_id == candidate_id,]
-    print(candidate_selected)
+    #print(candidate_selected)
     other_candidates <- candidates[candidates$candidate_id != candidate_id,]
     
     other_candidates$link <- paste0(other_candidates$name, "<br>Located at: ", other_candidates$located_at, "<br>Source: ", other_candidates$data_source, "<br>Uncertainty (m): ", prettyNum(other_candidates$uncertainty_m, big.mark = ",", scientific = FALSE), "<br>Score: ", other_candidates$score, "<br><small><a href=\"./?collex_id=", collex_id, "&species=", species, "&recgrp_id=", recgrp_id, "&candidate_id=", other_candidates$candidate_id, "\">Select this locality</a></small>")
@@ -691,7 +702,7 @@ server <- function(input, output, session) {
     output$map <- renderLeaflet({
       spp_map <- session$userData$spp_map
       spp_map_data <- session$userData$spp_map_data
-      
+      print(spp_map_data)
       leaflet_map(species_data = spp_map_data, candidate = TRUE, candidate_data = candidate_selected, markers = TRUE, markers_data = other_candidates)
     })
     
@@ -1061,18 +1072,18 @@ server <- function(input, output, session) {
         req(input$candidatematches_rows_selected)
         
         tagList(
-          HTML("<br><div class=\"panel panel-success\">
+          HTML("<br><div class=\"panel panel-info\">
         <div class=\"panel-heading\">
         <h3 class=\"panel-title\">Save Click Locality</h3>
         </div>
         <div class=\"panel-body\">"),
-          uiOutput("actions"),
+          uiOutput("actions_click"),
           HTML("</div></div>")
         )
       })
       
       #actions----
-      output$actions <- renderUI({
+      output$actions_click <- renderUI({
         req(input$candidatematches_rows_selected)
         
         query <- parseQueryString(session$clientData$url_search)
@@ -1082,10 +1093,11 @@ server <- function(input, output, session) {
         candidate_id <- query['candidate_id']
         
         tagList(
-          p(actionButton("gbif_rec_save", "Save location for the records")),
-          p(actionButton("gbif_rec_save", "Save location for the records1")),
-          p(actionButton("gbif_rec_save", "Save location for the records2")),
-          p(actionButton("gbif_rec_save", "Save location for the records3"))
+          sliderInput("uncert_slider", "Set the Uncertainty Value (in meters):",
+                  min = 0, max = 10000,
+                  value = uncertainty_m, step = 25, width = "100%"),
+          p(textInput("save_notes", "Notes:")),
+          p(actionButton("click_rec_save", "Save location for the records", class = "btn-primary"))
         )
         
       })
@@ -1098,11 +1110,12 @@ server <- function(input, output, session) {
                     <div class=\"panel-body\">
                         <dl class=\"dl-horizontal\">
                             <dt>Longitude</dt><dd>", click_lng, "</dd>
-                            <dt>Latitude</dt><dd>", click_lat, "</dd>")),
-              sliderInput("uncert_slider", "Set the Uncertainty Value (in meters):",
-                          min = 0, max = 10000,
-                          value = uncertainty_m, step = 25, width = "100%"),
-              actionButton("delete1", "Remove Click on Map", style='font-size:80%'),
+                            <dt>Latitude</dt><dd>", click_lat, "</dd></dl>")),
+              #sliderInput("uncert_slider", "Set the Uncertainty Value (in meters):",
+              #            min = 0, max = 10000,
+              #            value = uncertainty_m, step = 25, width = "100%"),
+              br(),
+              actionButton("delete1", "Remove Click on Map", class = "btn-warning", style='font-size:80%'),
               HTML("</div>
                   </div>")
       )
