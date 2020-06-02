@@ -1,22 +1,34 @@
 SELECT
-	ST_AsGeoJSON(the_geom_simp) as the_geom,
+	ST_AsGeoJSON(w.the_geom_simp) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_0 as name,
 	'Country' as type,
 	'World' as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_0 as located_at,
 	'gadm0' as layer
 FROM
-	gadm0,
+	gadm0 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -26,24 +38,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom_simp) as the_geom,
+	ST_AsGeoJSON(w.the_geom_simp) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_1 as name,
 	engtype_1 as type,
 	name_0 as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_0 as located_at,
 	'gadm1' as layer
 FROM
-	gadm1,
+	gadm1 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -53,24 +77,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom) as the_geom,
+	ST_AsGeoJSON(w.the_geom) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_2 as name,
 	engtype_2 as type,
 	concat(name_1 || ', ' || name_0) as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_1 || ', ' || name_0 as located_at,
 	'gadm2' as layer
 FROM
-	gadm2,
+	gadm2 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -80,24 +116,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom) as the_geom,
+	ST_AsGeoJSON(w.the_geom) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_3 as name,
 	engtype_3 as type,
 	concat(name_2 || ', ' || name_1 || ', ' || name_0) as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm3' as layer
 FROM
-	gadm3,
+	gadm3 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -107,24 +155,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom) as the_geom,
+	ST_AsGeoJSON(w.the_geom) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_4 as name,
 	engtype_4 as type,
 	concat(name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0) as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm4' as layer
 FROM
-	gadm4,
+	gadm4 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -134,24 +194,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom) as the_geom,
+	ST_AsGeoJSON(w.the_geom) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	name_5 as name,
 	engtype_5 as type,
 	concat(name_4 || ', ' || name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0) as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom_simp) as xmin,
-	st_xmax(the_geom_simp) as xmax,
-	st_ymin(the_geom_simp) as ymin,
-	st_ymax(the_geom_simp) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom_simp) as xmin,
+	st_xmax(w.the_geom_simp) as xmax,
+	st_ymin(w.the_geom_simp) as ymin,
+	st_ymax(w.the_geom_simp) as ymax,
 	'polygon' as geom_type,
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm5' as layer
 FROM
-	gadm5,
+	gadm5 w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
@@ -193,8 +265,20 @@ SELECT
 	w.name,
 	w.desig_eng as type,
 	c.country as parent,
-	st_x(w.centroid) as longitude,
-	st_y(w.centroid) as latitude,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
 	st_xmin(w.the_geom) as xmin,
 	st_xmax(w.the_geom) as xmax,
 	st_ymin(w.the_geom) as ymin,
@@ -213,24 +297,36 @@ WHERE
 UNION
 
 SELECT
-	ST_AsGeoJSON(the_geom) as the_geom,
+	ST_AsGeoJSON(w.the_geom) as the_geom,
 	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
-	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
+	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	uid,
 	lake_name as name,
 	type,
 	country as parent,
-	st_x(centroid) as longitude,
-	st_y(centroid) as latitude,
-	st_xmin(the_geom) as xmin,
-	st_xmax(the_geom) as xmax,
-	st_ymin(the_geom) as ymin,
-	st_ymax(the_geom) as ymax,
+	st_x(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as longitude,
+	st_y(
+		st_transform(
+			(ST_MinimumBoundingRadius(
+				st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+			)).center,
+			'+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
+		) as latitude,
+	st_xmin(w.the_geom) as xmin,
+	st_xmax(w.the_geom) as xmax,
+	st_ymin(w.the_geom) as ymin,
+	st_ymax(w.the_geom) as ymax,
 	'polygon' as geom_type,
 	gadm2 as located_at,
 	'global_lakes' as layer
 FROM
-	global_lakes,
+	global_lakes w,
 	utm_zones u
 WHERE
 	uid = '{uid}' AND
