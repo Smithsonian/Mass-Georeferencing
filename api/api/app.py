@@ -10,15 +10,10 @@ import simplejson as json
 import psycopg2, os, logging, sys, math, locale
 import psycopg2.extras
 from uuid import UUID
-#import numpy as np
-#import pandas as pd
 #For parallel
 import multiprocessing as mp
 from functools import partial
-#from fuzzywuzzy import fuzz
-#from fuzzywuzzy import process
 
-#import collections, operator, io
 
 
 api_ver = "0.1"

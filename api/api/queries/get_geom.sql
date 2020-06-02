@@ -1,6 +1,6 @@
 SELECT
 	ST_AsGeoJSON(the_geom_simp) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_0 as name,
@@ -16,16 +16,18 @@ SELECT
 	name_0 as located_at,
 	'gadm0' as layer
 FROM
-	gadm0
+	gadm0,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm0'
+	'{layer}' = 'gadm0' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom_simp) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_1 as name,
@@ -41,16 +43,18 @@ SELECT
 	name_0 as located_at,
 	'gadm1' as layer
 FROM
-	gadm1
+	gadm1,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm1'
+	'{layer}' = 'gadm1' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_2 as name,
@@ -66,16 +70,18 @@ SELECT
 	name_1 || ', ' || name_0 as located_at,
 	'gadm2' as layer
 FROM
-	gadm2
+	gadm2,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm2'
+	'{layer}' = 'gadm2' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_3 as name,
@@ -91,16 +97,18 @@ SELECT
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm3' as layer
 FROM
-	gadm3
+	gadm3,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm3'
+	'{layer}' = 'gadm3' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_4 as name,
@@ -116,16 +124,18 @@ SELECT
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm4' as layer
 FROM
-	gadm4
+	gadm4,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm4'
+	'{layer}' = 'gadm4' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	name_5 as name,
@@ -141,10 +151,12 @@ SELECT
 	name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
 	'gadm5' as layer
 FROM
-	gadm5
+	gadm5,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'gadm5'
+	'{layer}' = 'gadm5' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
@@ -175,7 +187,7 @@ UNION
 
 SELECT
 	ST_AsGeoJSON(w.the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, '+proj=eqc +lat_ts=60 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(w.the_geom)) as the_geom_extent,
 	w.uid,
 	w.name,
@@ -191,16 +203,18 @@ SELECT
 	gadm2 as located_at,
 	'wdpa_polygons' as layer
 FROM
-	wdpa_polygons w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)
+	wdpa_polygons w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3),
+	utm_zones u
 WHERE
 	w.uid = '{uid}' AND
-	'{layer}' = 'wdpa_polygons'
+	'{layer}' = 'wdpa_polygons' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 
 SELECT
 	ST_AsGeoJSON(the_geom) as the_geom,
-	round((ST_MinimumBoundingRadius(st_transform(the_geom, '+proj=eqc +lat_ts=60 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
+	round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) as min_bound_radius_m,
 	ST_AsGeoJSON(st_envelope(the_geom)) as the_geom_extent,
 	uid,
 	lake_name as name,
@@ -216,10 +230,12 @@ SELECT
 	gadm2 as located_at,
 	'global_lakes' as layer
 FROM
-	global_lakes
+	global_lakes,
+	utm_zones u
 WHERE
 	uid = '{uid}' AND
-	'{layer}' = 'global_lakes'
+	'{layer}' = 'global_lakes' AND
+	st_intersects(w.the_geom, u.the_geom)
 
 UNION
 

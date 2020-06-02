@@ -555,7 +555,7 @@ server <- function(input, output, session) {
       output$map_header <- renderUI({
         tagList(
           h4("Map of the species distribution and candidate matches:"),
-          HTML("<em>Click on the map to create a new locality - turn off buffers to create a point in that area</em>")
+          HTML("<small>Click on the map to create a new locality; you may need to turn off buffers to create a point in that area</small>")
         )
       })
       
@@ -856,7 +856,8 @@ server <- function(input, output, session) {
     candidate_info <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
     
     #Geom and details of candidate
-    if (candidate_info$data_source == "gbif.species" || candidate_info$data_source == "gbif.genus"){
+    #if (candidate_info$data_source == "gbif.species" || candidate_info$data_source == "gbif.genus"){
+    if (substring(candidate_info$data_source, 0, 4) == "gbif"){
       data_source = "gbif"
       api_req <- httr::POST(URLencode(paste0(api_url, "/mg/get_gbif_record")),
                             body = list(uid = candidate_info$feature_id,
@@ -1177,10 +1178,13 @@ server <- function(input, output, session) {
       u <- p("Uncertainty: ", uncert)
     }
     
+    uncert_utm <- the_feature$utm_min_bound_radius_m
+    print(uncert_utm)
+    
     tagList(
       u,
       p(textInput("save_notes", "Notes:")),
-      p(actionButton("gbif_rec_save", "Save location for the records", class = "btn-primary"))
+      p(actionButton("click_rec_save", "Save location for the records", class = "btn-primary"))
     )
   })
   
@@ -1196,6 +1200,31 @@ server <- function(input, output, session) {
       removeMarker(layerId = "save_uncert") %>% 
       addCircles(lng = as.numeric(lng), lat = as.numeric(lat), radius = input$save_uncert, layerId = "save_uncert", fillColor = "yellow", color = "yellow")
   })
+  
+  
+  
+  
+  #click_rec_save modal----
+  observeEvent(input$click_rec_save, {
+    
+    showModal(modalDialog(
+      size = "l",
+      title = "Save match",
+      br(),
+      p("Record Group"),
+      p("Candidate Selected"),
+      
+      easyClose = TRUE
+    ))
+  })
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   # footer ----

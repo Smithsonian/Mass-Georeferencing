@@ -249,7 +249,8 @@ CREATE TABLE mg_candidates
     data_source text NOT NULL,
     feature_id text NOT NULL,
     no_features int NOT NULL DEFAULT 1,
-    updated_at timestamp with time zone DEFAULT NOW());
+    updated_at timestamp with time zone DEFAULT NOW()
+);
 CREATE INDEX mg_candidates_rgid_idx ON mg_candidates USING BTREE(candidate_id);
 CREATE INDEX mg_candidates_rid_idx ON mg_candidates USING BTREE(recgroup_id);
 CREATE INDEX mg_candidates_data_source_idx ON mg_candidates USING BTREE(data_source);
@@ -304,13 +305,18 @@ $$ language plpgsql;
 DROP TABLE IF EXISTS mg_selected_candidates CASCADE;
 CREATE TABLE mg_selected_candidates
 (
-    mg_selected_candidates_id serial PRIMARY KEY,
+    mg_selected_candidates_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
     candidate_id uuid REFERENCES mg_candidates(candidate_id) ON DELETE CASCADE ON UPDATE CASCADE,
     recgroup_id uuid REFERENCES mg_recordgroups(recgroup_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    data_source text,
     point_or_polygon text DEFAULT 'point',
     uncertainty_m float DEFAULT NULL,
-    updated_at timestamp with time zone DEFAULT NOW());
+    notes text,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
 CREATE INDEX mg_selcandidates_rgid_idx ON mg_selected_candidates USING BTREE(candidate_id);
+CREATE INDEX mg_selcandidates_collexid_idx ON mg_selected_candidates USING BTREE(collex_id);
 CREATE INDEX mg_selcandidates_rid_idx ON mg_selected_candidates USING BTREE(recgroup_id);
 CREATE INDEX mg_selcandidates_id_idx ON mg_selected_candidates USING BTREE(mg_selected_candidates_id);
 
@@ -324,6 +330,7 @@ CREATE TRIGGER trigger_updated_at_mg_selected_candidates
 
 --Selected candidate
 --mg_recgrp_candidate_selected
+/*
 DROP TABLE IF EXISTS mg_recgrp_candidate_selected CASCADE;
 CREATE TABLE mg_recgrp_candidate_selected
 (
@@ -344,7 +351,7 @@ CREATE TRIGGER trigger_updated_at_mg_recgrp
   BEFORE UPDATE ON mg_recgrp_candidate_selected
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
-
+*/
 
 
 

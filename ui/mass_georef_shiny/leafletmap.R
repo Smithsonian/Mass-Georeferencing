@@ -29,6 +29,13 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
   #species_geom_layer <- paste0(species_data$type, ' of\n', species)
   species_geom_layer <- "Species Dist"
   
+  
+  #Testing custom proj
+  # custom_crs <- leafletCRS(crsClass = "L.Proj.CRS", 
+  #                        proj4def = "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+  # )
+  
+  
   res <- leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
     htmlwidgets::onRender("function(el, x) {
             L.control.zoom({ position: 'topright' }).addTo(this)
@@ -135,7 +142,7 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
       )
       
       the_feature <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-      print(the_feature)
+
       if (the_feature$geom_type == "point"){
         #Candidate is point
         
@@ -168,6 +175,7 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
           )
       }else{
         #Candidate is polygon
+        print(the_feature)
         longitude <- the_feature$longitude
         latitude <- the_feature$latitude
         the_geom <- the_feature$the_geom
@@ -185,7 +193,13 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
             options = layersControlOptions(collapsed = FALSE)
           ) %>%
           addAwesomeMarkers(data = cand_coords, popup = candidate_popup, options = marker_options) %>% 
-          addGeoJSONv2(geojson = the_geom, color = "yellow", opacity = 0.8, fill = TRUE, group = sel_candidate_buf) %>%
+          addGeoJSONv2(geojson = the_geom, color = "blue", opacity = 0.8, fill = TRUE, group = sel_candidate_buf) %>%
+          addCircles(lng = the_feature$longitude, lat = the_feature$latitude, weight = 1,
+                     radius = the_feature$min_bound_radius_m, popup = paste0("Uncertainty of ", the_feature$name),
+                     fillOpacity = 0.2, 
+                     fillColor = "yellow"#,
+                     #group = uncert_layer
+          ) %>% 
           addAwesomeMarkers(data = coords, popup = markers_data$link, icon = icons, options = candidates_options) %>%
           fitBounds(min(as.numeric(candidate_data$longitude)) - 0.05, min(as.numeric(candidate_data$latitude)) - 0.05, max(as.numeric(candidate_data$longitude)) + 0.05, max(as.numeric(candidate_data$latitude)) + 0.05) %>% 
           addEasyButton(easyButton(
