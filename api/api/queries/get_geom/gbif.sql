@@ -38,7 +38,5 @@ SELECT
 	g.name_2 ||  ', ' || g.name_1 ||  ', ' || g.name_0 as located_at,
 	'gbif' as layer
 FROM
-	data d,
-	gadm2 g
-WHERE
-	st_intersects(d.point_geom, g.the_geom)
+	data d LEFT JOIN gadm2 g ON 
+			(d.point_geom, g.the_geom)

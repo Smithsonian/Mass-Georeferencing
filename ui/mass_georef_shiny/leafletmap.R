@@ -180,25 +180,27 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
         latitude <- the_feature$latitude
         the_geom <- the_feature$the_geom
         the_geom_extent <- the_feature$the_geom_extent
+        cand_coords <- SpatialPoints(coords = data.frame(lng = as.numeric(the_feature$longitude), lat = as.numeric(the_feature$latitude)), proj4string = CRS("+proj=longlat +datum=WGS84"))
         
-        candidate_popup <- paste0("Centroid of: ", candidate_data$name, "<br>Located at: ", candidate_data$located_at, "<br>Source: ", candidate_data$data_source, "<br>Uncertainty (m): ", prettyNum(candidate_data$uncertainty_m, big.mark = ",", scientific = FALSE), "<br>Score: ", candidate_data$score)
+        candidate_popup <- paste0("Centroid of: ", candidate_data$name, "<br>Located at: ", candidate_data$located_at, "<br>Source: ", candidate_data$data_source, "<br>Uncertainty (m): ", prettyNum(the_feature$min_bound_radius_m, big.mark = ",", scientific = FALSE), "<br>Score: ", candidate_data$score)
         
-        sel_candidate_buf <- "Candidate Polygon"
+        sel_candidate_buf <- "Candidate Uncert"
+        sel_candidate <- "Candidate Polygon"
         
         res <- res %>% 
           addGeoJSONv2(spp_geom, popupProperty='Species', color = "#36e265", opacity = 0.8, group = species_geom_layer, fill = FALSE) %>%
           addLayersControl(
             baseGroups = c("OSM (default)", "Topo", "ESRI", "ESRI Sat"),
-            overlayGroups = c(species_geom_layer, uncert_layer, sel_candidate_buf),
+            overlayGroups = c(species_geom_layer, uncert_layer, sel_candidate, sel_candidate_buf),
             options = layersControlOptions(collapsed = FALSE)
           ) %>%
           addAwesomeMarkers(data = cand_coords, popup = candidate_popup, options = marker_options) %>% 
-          addGeoJSONv2(geojson = the_geom, color = "blue", opacity = 0.8, fill = TRUE, group = sel_candidate_buf) %>%
+          addGeoJSONv2(geojson = the_geom, color = "blue", opacity = 0.8, fill = TRUE, group = sel_candidate) %>%
           addCircles(lng = the_feature$longitude, lat = the_feature$latitude, weight = 1,
-                     radius = the_feature$min_bound_radius_m, popup = paste0("Uncertainty of ", the_feature$name),
+                     radius = the_feature$min_bound_radius_m, popup = paste0("Uncertainty of ", the_feature$name, "<br>(based on the area of the polygon)"),
                      fillOpacity = 0.2, 
-                     fillColor = "yellow"#,
-                     #group = uncert_layer
+                     fillColor = "yellow",
+                     group = sel_candidate_buf
           ) %>% 
           addAwesomeMarkers(data = coords, popup = markers_data$link, icon = icons, options = candidates_options) %>%
           fitBounds(min(as.numeric(candidate_data$longitude)) - 0.05, min(as.numeric(candidate_data$latitude)) - 0.05, max(as.numeric(candidate_data$longitude)) + 0.05, max(as.numeric(candidate_data$latitude)) + 0.05) %>% 

@@ -896,7 +896,7 @@ server <- function(input, output, session) {
       if (is.null(uncert)){
         uncert <- "NA"
       }else{
-          uncert <- paste0(uncert, " m (yellow buffer in map)")
+          uncert <- paste0(uncert, " m<br>(yellow buffer in map; from polygon area)")
       }
     }
     
@@ -1004,6 +1004,8 @@ server <- function(input, output, session) {
       title = "Help",
       br(),
       p("This application is a demo on an approach to georeference records on a massive scale. The georeferencing clusters records by species that share similar localities. Then, the system will display possible matches based on similar localities in GBIF, as well as locations from other databases."),
+      p("It is recommneded to run this application in full screen (F11) in a full HD display (1920x1080)."),
+      p("Area of polygons is measured in meters using a UTM projection."),
       DT::renderDataTable(DT::datatable(data_sources, 
                     escape = FALSE,
                     options = list(searching = FALSE,

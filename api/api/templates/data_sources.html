@@ -4,24 +4,22 @@
   <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>DPOGIS</title>
+    <title>DPO Spatial API - Data Sources</title>
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-
 
 </head>
 <body>
 
 <div class="container">
 
-<h3>Spatial GIS API Data Sources</h3>
+<h3><img src = "static/dpo.png" title = "DPO Logo" alt = "DPO Logo" class = "float-right">DPO Spatial API - Data Sources</h3>
 
   <table class="table table-sm table-striped">
   <thead class = "thead-dark">
     <tr>
-      <th scope="col">Source ID</th>
-      <th scope="col">Title / URL</th>
+      <th scope="col">Dataset / URL</th>
       <th scope="col">No. of features</th>
       <th scope="col">Notes</th>
       <th scope="col" class="text-nowrap">Date</th>
@@ -31,18 +29,16 @@
   <tbody>
     {% for source in data %}
         <tr>
-          <td>{{ source.datasource_id }}</td>
           <td>{{ source.source_title }}<br>
               <a href="{{ source.source_url }}" target = "_blank">{{ source.source_url }}</a></td>
           <td>{{ source.no_feat }}</td>
-          <td>{{ source.source_notes }}</td>
+          <td><small>{{ source.source_notes }}</small></td>
           <td class="text-nowrap">{{ source.date_f }}</td>
-          <td>{{ source.source_refresh }}</td>
+          <td class="text-nowrap">{{ source.source_refresh }}</td>
         </tr>      
     {% endfor %}
        <tr>
-          <td class="table-light">&nbsp;</td>
-          <td class="table-success"><strong>Total:</strong></td>
+          <td class="table-success"><strong class = "float-right">Total features in the database: </strong></td>
           <td class="table-success"><strong>{{ summary }}</strong></td>
           <td class="table-light">&nbsp;</td>
           <td class="table-light">&nbsp;</td>

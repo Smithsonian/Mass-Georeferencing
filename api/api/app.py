@@ -107,12 +107,9 @@ def apikey():
         raise InvalidUsage('Invalid key, it must be a valid UUID.', status_code = 400)
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Query
@@ -141,7 +138,7 @@ def apikey():
 
 
 
-@app.route('/api/routes', methods=['GET', 'POST'])
+@app.route('/api/routes', methods = ['GET', 'POST'])
 def routes_list():
     """Print available routes"""
     #Adapted from https://stackoverflow.com/a/17250154
@@ -153,8 +150,8 @@ def routes_list():
 
 
 
-@app.route('/api/', methods=['GET', 'POST'])
-@app.route('/api', methods=['GET', 'POST'])
+@app.route('/api/', methods = ['GET', 'POST'])
+@app.route('/api', methods = ['GET', 'POST'])
 def index():
     """Welcome message and API versions available"""
     data = json.dumps({'current_version': api_ver, 'reference_url': "https://confluence.si.edu/display/DPOI/Spatial+database+and+API", 'api_title': "OCIO DPO PostGIS API"})
@@ -162,31 +159,28 @@ def index():
 
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods = ['GET', 'POST'])
 def home():
     """Homepage in HTML format"""
     return render_template('home.html')
 
 
 
-@app.route('/help', methods=['GET', 'POST'])
+@app.route('/help', methods = ['GET', 'POST'])
 def help():
     """Help page in HTML format"""
     return render_template('help.html')
 
 
 
-@app.route('/data_sources', methods=['GET', 'POST'])
+@app.route('/data_sources', methods = ['GET', 'POST'])
 def get_sources_html():
     """Get the details of the data sources in HTML format."""
     #API Key not needed
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -203,62 +197,7 @@ def get_sources_html():
 
 
 
-@app.route('/api/feature', methods=['POST'])
-def get_feat_info():
-    """Returns the attributes of a feature."""
-    #Check for valid API Key
-    if apikey() == False:
-        raise InvalidUsage('Unauthorized', status_code = 401)
-    #Check inputs
-    uid = request.form.get('uid')
-    if uid == None:
-        raise InvalidUsage('uid missing', status_code = 400)
-    try:
-        uid = UUID(uid, version = 4)
-    except:
-        raise InvalidUsage('uid is not a valid UUID', status_code = 400)
-    layer = request.form.get('layer')
-    if layer == None:
-        raise InvalidUsage('layer missing', status_code = 400)
-    #Connect to the database
-    try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
-    except psycopg2.Error as e:
-        raise InvalidUsage('System error', status_code = 500)
-    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    #Check that layer is online
-    cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
-    valid_layer = cur.fetchone()
-    if valid_layer == 0:
-        raise InvalidUsage('layer does not exists', status_code = 400)
-    cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
-    is_online = cur.fetchone()
-    if is_online == False:
-        raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
-    #Query file
-    with open('queries/get_feature.sql') as f:
-        query_template = f.read()
-    #Build query
-    #cur.execute(query_template.format(uid = uid, layer = layer, get_geometry = get_geometry))
-    cur.execute(query_template.format(uid = uid, layer = layer))
-    logging.debug(cur.query)
-    if cur.rowcount == 0:
-        cur.close()
-        conn.close()
-        raise InvalidUsage('An area with this uid was not found', status_code = 400)
-    else:
-        data = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify(data)
-
-
-
-@app.route('/api/geom', methods=['POST'])
+@app.route('/api/geom', methods = ['POST'])
 def get_geom():
     """Returns the geometry of a feature."""
     #Check for valid API Key
@@ -282,12 +221,9 @@ def get_geom():
             raise InvalidUsage('species missing', status_code = 400)            
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Check that layer is online
@@ -300,18 +236,16 @@ def get_geom():
     if is_online == False:
         raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
     #Query file
-    #--using World Equidistant Cylindrical
-    #   round((ST_MinimumBoundingRadius(st_transform(the_geom, '+proj=eqc +lat_ts=60 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs '))).radius) as min_bound_radius_m
-    if layer[:4] != "gbif":
-        with open('queries/get_geom.sql') as f:
-            query_template = f.read()
-        #Build query
-        cur.execute(query_template.format(uid = uid, layer = layer))
-    else:
-        with open('queries/get_geom_gbif.sql') as f:
+    if layer[:4] == "gbif":
+        with open('queries/get_geom/gbif.sql') as f:
             query_template = f.read()
         #Build query
         cur.execute(query_template.format(uid = uid, species = species))
+    else:
+        with open('queries/get_geom/{}.sql'.format(layer)) as f:
+            query_template = f.read()
+        #Build query
+        cur.execute(query_template.format(uid = uid))
     logging.debug(cur.query)
     if cur.rowcount == 0:
         cur.close()
@@ -325,7 +259,59 @@ def get_geom():
 
 
 
-@app.route('/api/species_range', methods=['POST'])
+@app.route('/api/feature', methods = ['POST'])
+def get_feat_info():
+    """Returns the attributes of a feature."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    uid = request.form.get('uid')
+    if uid == None:
+        raise InvalidUsage('uid missing', status_code = 400)
+    try:
+        uid = UUID(uid, version = 4)
+    except:
+        raise InvalidUsage('uid is not a valid UUID', status_code = 400)
+    layer = request.form.get('layer')
+    if layer == None:
+        raise InvalidUsage('layer missing', status_code = 400)
+    #Connect to the database
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Check that layer is online
+    cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    valid_layer = cur.fetchone()
+    if valid_layer == 0:
+        raise InvalidUsage('layer does not exists', status_code = 400)
+    cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    is_online = cur.fetchone()
+    if is_online == False:
+        raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
+    #Query file
+    with open('queries/get_feature/{}.sql'.format(layer)) as f:
+        query_template = f.read()
+    #Build query
+    cur.execute(query_template.format(uid = uid))
+    logging.debug(cur.query)
+    if cur.rowcount == 0:
+        cur.close()
+        conn.close()
+        raise InvalidUsage('An area with this uid was not found', status_code = 400)
+    else:
+        data = cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify(data)
+
+
+
+
+@app.route('/api/species_range', methods = ['POST'])
 def get_spprange():
     """Returns the range of a species. If there is no range, return the convex poly of GBIF points"""
     #Check for valid API Key
@@ -340,12 +326,9 @@ def get_spprange():
         range_type = "all"
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Query file
@@ -394,7 +377,7 @@ def get_spprange():
 
 
 
-@app.route('/api/species_range_dist', methods=['POST'])
+@app.route('/api/species_range_dist', methods = ['POST'])
 def get_spprange_dist():
     """Returns the distance to the edge the range of a species. If there is no range, use the convex poly of GBIF points"""
     #Check for valid API Key
@@ -416,12 +399,9 @@ def get_spprange_dist():
         raise InvalidUsage('invalid lng value', status_code = 400)        
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Query file
@@ -442,7 +422,7 @@ def get_spprange_dist():
 
 
 
-@app.route('/api/intersection', methods=['POST'])
+@app.route('/api/intersection', methods = ['POST'])
 def get_wdpa():
     """Returns the uid of the feature that intersects the lat and lon given."""
     #Check for valid API Key
@@ -470,12 +450,9 @@ def get_wdpa():
         raise InvalidUsage('layer missing', status_code = 400)
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
@@ -523,7 +500,7 @@ def get_wdpa():
 
 
 
-@app.route('/api/all_names', methods=['POST'])
+@app.route('/api/all_names', methods = ['POST'])
 def get_gadm_names():
     """Returns all names from the specified layer."""
     #Check for valid API Key
@@ -543,24 +520,26 @@ def get_gadm_names():
                     user = settings.user,
                     password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     results = {}
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    valid_layer = cur.fetchone()
+    if valid_layer['count'] == 0:
+        raise InvalidUsage('layer does not exists', status_code = 400)
+    cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    is_online = cur.fetchone()
+    if is_online['is_online'] == False:
+        raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
     #Query file
     if layer in ['gadm0', 'gadm1', 'gadm2', 'gadm3', 'gadm4', 'gadm5']:
-        cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = 'gadm'")
-        is_online = cur.fetchone()
-        if is_online == False:
-            raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
         with open('queries/gadm_list_names.sql') as f:
             query_template = f.read()
         #Build query
         cur.execute(query_template.format(level = layer.replace('gadm', '')))
     if layer in ['wdpa_polygons', 'wdpa_points']:
-        cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer_id)s", {'layer_id': layer})
-        is_online = cur.fetchone()
-        if is_online == False:
-            raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
         with open('queries/wdpa_list_names.sql') as f:
             query_template = f.read()
         #Build query
@@ -577,7 +556,7 @@ def get_gadm_names():
 
 
 
-@app.route('/api/search', methods=['POST'])
+@app.route('/api/search', methods = ['POST'])
 def search_names():
     """Search names in the databases for matches. Search is case insensitive."""
     #Check for valid API Key
@@ -589,12 +568,9 @@ def search_names():
         raise InvalidUsage('string missing', status_code = 400)
     #Connect to the database
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     results = {}
@@ -615,17 +591,14 @@ def search_names():
 
 
 
-@app.route('/api/data_sources', methods=['POST'])
+@app.route('/api/data_sources', methods = ['POST'])
 def get_sources():
     """Get the details of the data sources in JSON."""
     #API Key not needed
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -639,7 +612,7 @@ def get_sources():
 
 
 #MassDigi-specific routes
-@app.route('/mdpp/previewimage', methods=['GET'])
+@app.route('/mdpp/previewimage', methods = ['GET'])
 def get_preview():
     """Return image previews from Mass Digi Projects."""
     file_id = request.args.get('file_id')
@@ -653,21 +626,20 @@ def get_preview():
     
 
 
+##################################
+# Mass Georeferencing routes
+##################################
 
-#Mass Georeferencing routes
-@app.route('/mg/all_collex', methods=['POST'])
+@app.route('/mg/all_collex', methods = ['POST'])
 def get_collex():
     """Get all collex available for MG."""
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -680,7 +652,7 @@ def get_collex():
 
 
 
-@app.route('/mg/collex_info', methods=['POST'])
+@app.route('/mg/collex_info', methods = ['POST'])
 def get_collexinfo():
     """Get all collex available for MG."""
     #Check for valid API Key
@@ -695,12 +667,9 @@ def get_collexinfo():
     except: 
         raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -712,7 +681,7 @@ def get_collexinfo():
     return jsonify(data)
 
 
-@app.route('/mg/collex_species', methods=['POST'])
+@app.route('/mg/collex_species', methods = ['POST'])
 def get_collex_spp():
     """Get all species available for a collex for MG."""
     #Check for valid API Key
@@ -727,12 +696,9 @@ def get_collex_spp():
     except: 
         raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -746,7 +712,7 @@ def get_collex_spp():
 
 
 
-@app.route('/mg/species_recgroups', methods=['POST'])
+@app.route('/mg/species_recgroups', methods = ['POST'])
 def get_spp_recgroups():
     """Get all record groups for a species."""
     #Check for valid API Key
@@ -764,12 +730,9 @@ def get_spp_recgroups():
     except: 
         raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -782,7 +745,7 @@ def get_spp_recgroups():
 
 
 
-@app.route('/mg/recgroups_records', methods=['POST'])
+@app.route('/mg/recgroups_records', methods = ['POST'])
 def get_recgroups_records():
     """Get all record groups for a species."""
     #Check for valid API Key
@@ -797,12 +760,9 @@ def get_recgroups_records():
     except: 
         raise InvalidUsage('Invalid recgroup_id key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -815,7 +775,7 @@ def get_recgroups_records():
 
 
 
-@app.route('/mg/candidates', methods=['POST'])
+@app.route('/mg/candidates', methods = ['POST'])
 def get_candidates():
     """Get all record groups for a species."""
     #Check for valid API Key
@@ -840,12 +800,9 @@ def get_candidates():
     if species == None:
         raise InvalidUsage('Missing species', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Query file
@@ -865,7 +822,7 @@ def get_candidates():
 
 
 
-@app.route('/mg/candidate_scores', methods=['POST'])
+@app.route('/mg/candidate_scores', methods = ['POST'])
 def get_candidate_scores():
     """Get all record groups for a species."""
     #Check for valid API Key
@@ -880,12 +837,9 @@ def get_candidate_scores():
     except: 
         raise InvalidUsage('Invalid candidate_id key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -898,7 +852,7 @@ def get_candidate_scores():
 
 
 
-@app.route('/mg/candidate_info', methods=['POST'])
+@app.route('/mg/candidate_info', methods = ['POST'])
 def get_candidate_info():
     """Get all record groups for a species."""
     #Check for valid API Key
@@ -913,12 +867,9 @@ def get_candidate_info():
     except: 
         raise InvalidUsage('Invalid candidate_id key, it must be a valid UUID.', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -931,7 +882,7 @@ def get_candidate_info():
 
 
 
-@app.route('/mg/get_gbif_record', methods=['POST'])
+@app.route('/mg/get_gbif_record', methods = ['POST'])
 def get_gbif_record():
     """Get single GBIF record."""
     #Check for valid API Key
@@ -945,12 +896,9 @@ def get_gbif_record():
     if species == None:
         raise InvalidUsage('Missing species', status_code = 400)
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
@@ -965,7 +913,7 @@ def get_gbif_record():
 
 
 
-@app.route('/mg/get_scoretypes', methods=['POST'])
+@app.route('/mg/get_scoretypes', methods = ['POST'])
 def get_scoretypes():
     """Get score types used in the matching."""
     #Check for valid API Key
@@ -973,12 +921,9 @@ def get_scoretypes():
         raise InvalidUsage('Unauthorized', status_code = 401)
     #No inputs, other than api key
     try:
-        conn = psycopg2.connect(
-                    host = settings.host,
-                    database = settings.database,
-                    user = settings.user,
-                    password = settings.password)
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
+        logging.error(e)
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
