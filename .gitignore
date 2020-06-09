@@ -46,3 +46,6 @@ settings.R
 *.Rproj
 
 __pycache__
+
+*.zip
+
