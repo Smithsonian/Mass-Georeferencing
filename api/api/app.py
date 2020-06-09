@@ -89,7 +89,7 @@ def page_not_found(e):
 
 
 
-def apikey():
+def apikey(admin = False):
     headers = request.headers
     #Temp for dev
     if request.access_route[0] == settings.allow_ip:
@@ -119,23 +119,30 @@ def apikey():
     logging.info(auth)
     cur.execute(query_template, {'apikey': auth})
     logging.debug(cur.query)
-    data = cur.fetchone()
-    #Add counter
-    referrer = headers.get("Referer")
-    cur.execute("INSERT INTO apikeys_usage (key, referrer) VALUES (%(apikey)s, %(referrer)s)", {'apikey': auth, 'referrer': referrer})
-    logging.debug(cur.query)
-    conn.commit()
-    cur.close()
-    conn.close()
-    logging.info(headers)
-    if data['no_keys'] == 1:
-        if (data['rate_limit'] - data['no_queries']) < 0:
-            raise InvalidUsage('Rate limit exceeded. Wait an hour or contact us to raise your limit', status_code = 429)
-        else:
-            return True
-    else:
+    if cur.rowcount != 1:
+        #Could not find key or is no longer valid
         return False
-
+    else:
+        data = cur.fetchone()
+        #Add counter
+        referrer = headers.get("Referer")
+        cur.execute("INSERT INTO apikeys_usage (key, referrer) VALUES (%(apikey)s, %(referrer)s)", {'apikey': auth, 'referrer': referrer})
+        logging.debug(cur.query)
+        conn.commit()
+        cur.close()
+        conn.close()
+        logging.info(headers)
+        if admin == True:
+            if data['admin_user'] == True:
+                return True
+            else:
+                return False
+        else:
+            if (data['rate_limit'] - data['no_queries']) < 0:
+                raise InvalidUsage('Rate limit exceeded. Wait an hour or contact us to raise your limit', status_code = 429)
+            else:
+                return True
+        
 
 
 @app.route('/api/routes', methods = ['GET', 'POST'])
@@ -636,6 +643,9 @@ def get_collex():
     #Check for valid API Key
     if apikey() == False:
         raise InvalidUsage('Unauthorized', status_code = 401)
+    user_id = request.form.get('user_id')
+    if user_id == None:
+        raise InvalidUsage('Missing user_id', status_code = 400)
     try:
         conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
     except psycopg2.Error as e:
@@ -643,7 +653,7 @@ def get_collex():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT * FROM mg_collex")
+    cur.execute("SELECT c.* FROM mg_collex c, mg_users_collex u WHERE c.collex_id = u.collex_id AND u.user_id = '{user_id}'::UUID".format(user_id = user_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -935,6 +945,87 @@ def get_scoretypes():
     return jsonify(data)
 
 
+
+@app.route('/mg/login', methods = ['POST'])
+def mg_login():
+    """Login user."""
+    #Check for valid API Key
+    if apikey(True) == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    user_name = request.form.get('user_name')
+    if user_name == None:
+        raise InvalidUsage('Missing user_name', status_code = 400)
+    password = request.form.get('password')
+    if password == None:
+        raise InvalidUsage('Missing password', status_code = 400)
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT user_id FROM mg_users WHERE user_name = '{user_name}' AND user_pass = MD5('{password}')".format(user_name = user_name, password = password))
+    logging.debug(cur.query)
+    data = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
+
+@app.route('/mg/new_cookie', methods = ['POST'])
+def new_cookie():
+    """Create cookie."""
+    #Check for valid API Key
+    if apikey(True) == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    user_id = request.form.get('user_id')
+    if user_id == None:
+        raise InvalidUsage('Missing user_id', status_code = 400)
+    cookie = request.form.get('cookie')
+    if cookie == None:
+        raise InvalidUsage('Missing cookie', status_code = 400)
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("INSERT INTO mg_users_cookies (user_id, cookie) VALUES ('{user_id}', '{cookie}')".format(user_id = user_id, cookie = cookie))
+    conn.commit()
+    logging.debug(cur.query)
+    cur.close()
+    conn.close()
+    return jsonify(None)
+
+
+
+
+@app.route('/mg/check_cookie', methods = ['POST'])
+def check_cookie():
+    """Check if cookie is valid."""
+    #Check for valid API Key
+    if apikey(True) == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    cookie = request.form.get('cookie')
+    if cookie == None:
+        raise InvalidUsage('Missing cookie', status_code = 400)
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT u.user_id, u.user_name FROM mg_users u, mg_users_cookies c WHERE  c.user_id = u.user_id AND c.cookie = '{cookie}'".format(cookie = cookie))
+    logging.debug(cur.query)
+    data = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify(data)
 
 
 

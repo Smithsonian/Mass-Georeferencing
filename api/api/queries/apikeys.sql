@@ -1,25 +1,28 @@
 WITH keys AS (
       SELECT
-        COUNT(*) as no_keys,
-        max(rate_limit) as rate_limit
+        key,
+        rate_limit,
+        admin_user        
       FROM
         apikeys
       where
-        key = %(apikey)s
+        key = %(apikey)s AND
+        valid_key = 't'
     ),
     usage AS (
       SELECT
+        key,
         COUNT(*) as no_queries
       FROM
         apikeys_usage
       WHERE
         key = %(apikey)s AND
         timestamp >= NOW() - INTERVAL '1 HOURS'
+      GROUP BY key
     )
     SELECT
-      k.no_keys,
       k.rate_limit,
+      k.admin_user,
       u.no_queries
     FROM
-      keys k,
-      usage u
+      keys k LEFT JOIN usage u ON (k.key = u.key)
