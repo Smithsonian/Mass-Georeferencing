@@ -34,6 +34,63 @@ CREATE TRIGGER trigger_updated_at_mg_collex
 
 
 
+--Users
+DROP TABLE IF EXISTS mg_users CASCADE;
+CREATE TABLE mg_users
+(
+    user_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_name text NOT NULL,
+    user_pass text NOT NULL,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_collex_uid_idx ON mg_users USING BTREE(user_id);
+CREATE TRIGGER trigger_updated_at_mg_users
+  BEFORE UPDATE ON mg_users
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
+
+
+--Projects for users
+DROP TABLE IF EXISTS mg_users_collex CASCADE;
+CREATE TABLE mg_users_collex
+(
+    table_id serial PRIMARY KEY,
+    user_id uuid REFERENCES mg_users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_users_collex_tid_idx ON mg_users_collex USING BTREE(table_id);
+CREATE INDEX mg_users_collex_uid_idx ON mg_users_collex USING BTREE(user_id);
+CREATE INDEX mg_users_collex_cid_idx ON mg_users_collex USING BTREE(collex_id);
+CREATE TRIGGER trigger_updated_at_mg_users_collex
+  BEFORE UPDATE ON mg_users_collex
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
+
+
+
+--Cookies for users
+DROP TABLE IF EXISTS mg_users_cookies CASCADE;
+CREATE TABLE mg_users_cookies
+(
+    table_id serial PRIMARY KEY,
+    user_id uuid REFERENCES mg_users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    cookie text NOT NULL,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_users_cookies_tid_idx ON mg_users_cookies USING BTREE(table_id);
+CREATE INDEX mg_users_cookies_uid_idx ON mg_users_cookies USING BTREE(user_id);
+CREATE INDEX mg_users_cookies_cid_idx ON mg_users_cookies USING BTREE(cookie);
+CREATE TRIGGER trigger_updated_at_mg_users_cookies
+  BEFORE UPDATE ON mg_users_cookies
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
+
+
+
 --groups of records
 --mg_recordgroups
 DROP TABLE IF EXISTS mg_recordgroups CASCADE;
@@ -371,3 +428,6 @@ CREATE TRIGGER trigger_updated_at_mg_scoretypes
   BEFORE UPDATE ON mg_scoretypes
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
+
+
+

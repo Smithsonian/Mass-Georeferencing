@@ -14,6 +14,7 @@ library(DT)
 library(rgbif)
 #library(DBI)
 #library(httr)
+library(shinyjs)
 
 
 #Settings----
@@ -32,7 +33,7 @@ source("leafletmap.R")
 
 
 
-#Connect to the database ----
+# #Connect to the database ----
 # if (Sys.info()["nodename"] == "shiny.si.edu"){
 #   #For RHEL7 odbc driver
 #   pg_driver = "PostgreSQL"
@@ -42,7 +43,7 @@ source("leafletmap.R")
 # }else{
 #   pg_driver = "PostgreSQL Unicode"
 # }
-
+# 
 # db <- dbConnect(odbc::odbc(),
 #                 driver = pg_driver,
 #                 database = pg_db,
@@ -53,48 +54,263 @@ source("leafletmap.R")
 
 
 
+
+jsCode <- '
+        shinyjs.getcookie = function(params) {
+          var cookie = Cookies.get("uid");
+          if (typeof cookie !== "undefined") {
+            Shiny.onInputChange("jscookie", cookie);
+          } else {
+            var cookie = "";
+            Shiny.onInputChange("jscookie", cookie);
+          }
+        }
+        shinyjs.setcookie = function(params) {
+          Cookies.set("uid", escape(params), { expires: 6 });  
+          Shiny.onInputChange("jscookie", params);
+        }
+        shinyjs.rmcookie = function(params) {
+          Cookies.remove("uid");
+          Shiny.onInputChange("jscookie", "");
+        }
+      '
+
+
 #UI----
 ui <- fluidPage(
-          #title = app_name,
-          fluidRow(
-            column(width = 4,
-                   #h2("Mass Georeferencing Tool", id = "title_main"),
-                   #h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main"),
-                   uiOutput("title"),
-                   uiOutput("main"),
-                   uiOutput("maingroup"),
-                   uiOutput("species"),
-                   uiOutput("records_h"),
-                   div(DT::dataTableOutput("records"), style = "font-size:80%"),
-                   div(uiOutput("record_selected"), style = "font-size:90%"),
-                   uiOutput("candidatematches_h")
-            ),
-            column(width = 8,
-                   uiOutput("map_header"),
-                   shinycssloaders::withSpinner(leafletOutput("map", width = "100%", height = "520px")),
-                   fluidRow(
-                     column(width = 4,
-                            div(uiOutput("candidate_matches_info_h"), style = "font-size:80%")
-                     ),
-                     column(width = 4,
-                            uiOutput("candidatescores_box"),
-                            div(uiOutput("marker_info"), style = "font-size:80%")
-                     ),
-                     column(width = 4,
-                            uiOutput("actions_box")
-                     )
-                   )
-            )
-          ),
-               
-         #footer ----
-         uiOutput("footer")
+  
+    #cookies
+    tags$script(src = "js.cookie.min.js"),
+
+    useShinyjs(),
+    extendShinyjs(text = jsCode),
+    
+    #title = app_name,
+    fluidRow(
+      column(width = 4,
+             #h2("Mass Georeferencing Tool", id = "title_main"),
+             #h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main"),
+             uiOutput("title"),
+             uiOutput("main"),
+             uiOutput("userlogin"),
+             uiOutput("maingroup"),
+             uiOutput("species"),
+             uiOutput("records_h"),
+             div(DT::dataTableOutput("records"), style = "font-size:80%"),
+             div(uiOutput("record_selected"), style = "font-size:90%"),
+             uiOutput("candidatematches_h")
+      ),
+      column(width = 8,
+             fluidRow(
+               column(width = 10,
+                      uiOutput("map_header")
+               ),
+               column(width = 2,
+                      uiOutput("userinfo")
+               )
+             ),
+             shinycssloaders::withSpinner(leafletOutput("map", width = "100%", height = "520px")),
+             fluidRow(
+               column(width = 4,
+                      div(uiOutput("candidate_matches_info_h"), style = "font-size:80%")
+               ),
+               column(width = 4,
+                      uiOutput("candidatescores_box"),
+                      div(uiOutput("marker_info"), style = "font-size:80%")
+               ),
+               column(width = 4,
+                      uiOutput("actions_box")
+               )
+             )
+      )
+    ),
+         
+   #footer ----
+   uiOutput("footer")
          
 )
 
 
 #Server----
 server <- function(input, output, session) {
+  
+  status <- reactiveVal(value = NULL)
+  # check if a cookie is present and matching our super random sessionid
+  observe({
+    js$getcookie()
+    
+    if (is.null(input$jscookie)) {
+      status(paste0('in with sessionid ', input$jscookie))
+    }
+    else {
+      status('out')
+    }
+  })
+  
+  status <- reactiveVal(value = NULL)
+  # check if a cookie is present and matching our super random sessionid  
+  observe({
+    js$getcookie()
+    if (!is.null(input$jscookie)) {
+      #print(paste0("157 ", input$jscookie))
+      api_req <- httr::POST(URLencode(paste0(api_url, "mg/check_cookie")),
+                            body = list(cookie = input$jscookie),
+                            httr::add_headers(
+                              "X-Api-Key" = app_api_key
+                            ),
+                            encode = "form"
+      )
+      cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+      #print("164 cookie_check")
+      #print(cookie_check)
+      if (length(cookie_check$user_id) != 1){
+        status('out168')
+        js$rmcookie()
+      }
+    }
+  })
+  
+  
+  
+  #userlogin----
+  output$userlogin <- renderUI({
+    js$getcookie()
+    if (is.null(input$jscookie) || input$jscookie == ""){
+      tagList(
+        br(),br(),br(),br(),
+        textInput("username", "Username:"),
+        passwordInput("password", "Password:"),
+        actionButton("login", "Login")
+      )
+    }else{
+      api_req <- httr::POST(URLencode(paste0(api_url, "mg/check_cookie")),
+                            body = list(cookie = input$jscookie),
+                            httr::add_headers(
+                              "X-Api-Key" = app_api_key
+                            ),
+                            encode = "form"
+      )
+      cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+      
+      #user_id <- dbGetQuery(db, paste0("SELECT c.user_id, u.user_name FROM mg_users_cookies c, mg_users u WHERE c.user_id = u.user_id AND c.cookie = '", input$jscookie, "'"))
+      
+      if (length(cookie_check$user_id) != 1){
+        js$rmcookie()
+        tagList(
+          br(),br(),br(),
+          textInput("username", "Username:"),
+          passwordInput("password", "Password:"),
+          actionButton("login", "Login")
+        )
+      }else{
+        session$userData$user_id <- cookie_check$user_id
+        session$userData$username <- cookie_check$user_name
+        HTML("&nbsp;")
+      }
+    }
+  })
+  
+  
+  
+  #observeEvent_login----
+  observeEvent(input$login, {
+    api_req <- httr::POST(URLencode(paste0(api_url, "mg/login")),
+                          body = list(user_name = 'villanueval',#input$username,
+                                      password = 'password'#input$password
+                                      ),
+                          httr::add_headers(
+                            "X-Api-Key" = app_api_key
+                          ),
+                          encode = "form"
+    )
+    login <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+    
+    #is_user <- dbGetQuery(db, paste0("SELECT user_id FROM mg_users WHERE user_name = '", input$username, "' AND user_pass = MD5('", input$password, "')"))
+    
+    if (length(login$user_id) != 1){
+      output$userlogin <- renderUI({
+        p("Error: User not found or password not correct.")
+      }) 
+    }else{
+      api_req <- httr::POST(URLencode(paste0(api_url, "mg/check_cookie")),
+                            body = list(cookie = input$jscookie),
+                            httr::add_headers(
+                              "X-Api-Key" = app_api_key
+                            ),
+                            encode = "form"
+      )
+      cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+      # print("242")
+      # print(input$jscookie)
+      # print(cookie_check)
+      
+      #user_id <- dbGetQuery(db, paste0("SELECT c.user_id FROM mg_users_cookies c, mg_users u WHERE c.user_id = u.user_id AND c.cookie = '", input$jscookie, "'"))
+      if (length(cookie_check$user_id) != 1){
+        sessionid <- paste(
+          collapse = '',
+          sample(x = c(letters, LETTERS, 0:9), size = 64, replace = TRUE)
+        )
+        
+        #print("254")
+        js$setcookie(sessionid)
+        
+        # print("257")
+        # print(login$user_id)
+        # print(sessionid)
+        
+        api_req <- httr::POST(URLencode(paste0(api_url, "mg/new_cookie")),
+                              body = list(user_id = login$user_id,
+                                          cookie = sessionid),
+                              httr::add_headers(
+                                "X-Api-Key" = app_api_key
+                              ),
+                              encode = "form"
+        )
+        new_cookie <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+        
+        #n <- dbSendQuery(db, paste0("INSERT INTO mg_users_cookies (user_id, cookie) VALUES ('", is_user$user_id, "'::uuid, '", sessionid, "')"))
+        #dbClearResult(n)
+        #js$setcookie(sessionid)
+
+        #print(new_cookie)
+        session$userData$user_id <- cookie_check$user_id
+        session$userData$username <- cookie_check$user_name
+      }else{
+        session$userData$user_id <- cookie_check$user_id
+        session$userData$username <- cookie_check$user_name
+      }
+      
+      output$userlogin <- renderUI({
+        HTML("&nbsp;")
+      }) 
+    }
+  })
+  
+  
+  
+  #userinfo----
+  output$userinfo <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
+    tagList(
+      tags$small(session$userData$username, "  ", actionLink('logout', '[Logout]'))
+    )
+  }) 
+  
+  
+  
+  #observeEvent_logout----
+  observeEvent(input$logout, {
+    js$rmcookie()
+    #runqc_refresh----
+    output$runqc <- renderUI({
+      HTML("<script>$(location).attr('href', './')</script>")
+    })
+  })
+  
+  
+  
   
   source("functions.R")
   
@@ -129,9 +345,28 @@ server <- function(input, output, session) {
   
   #maingroup ----
   output$maingroup <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     collex_id <- query['collex_id']
     species <- query['species']
+    
+    api_req <- httr::POST(URLencode(paste0(api_url, "mg/check_cookie")),
+                          body = list(cookie = input$jscookie),
+                          httr::add_headers(
+                            "X-Api-Key" = app_api_key
+                          ),
+                          encode = "form"
+    )
+    cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+    
+    session$userData$user_id <- cookie_check$user_id
+    session$userData$username <- cookie_check$user_name
+    
+    if (length(session$userData$user_id) == 0){
+      req(FALSE)
+      }
     
     if (collex_id != "NULL"){
       
@@ -144,7 +379,6 @@ server <- function(input, output, session) {
                             ),
                             encode = "form"
       )
-      api_req
       
       collex <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
       
@@ -155,10 +389,11 @@ server <- function(input, output, session) {
       }
   
     }else{
-      collex_menu <- "<p>Select group (rank in parenthesis is how the group is selected):
+      collex_menu <- "<p>Select group:
                   <ul>"
       
       api_req <- httr::POST(URLencode(paste0(api_url, "mg/all_collex")),
+                            body = list(user_id = session$userData$user_id),
                             httr::add_headers(
                               "X-Api-Key" = app_api_key
                             ),
@@ -168,7 +403,7 @@ server <- function(input, output, session) {
       collections <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
       
       for (i in seq(1, dim(collections)[1])){
-          collex_menu <- paste0(collex_menu, "<li><a href=\"./?collex_id=", collections$collex_id[i], "\">", collections$collex_name[i], "</a></li>")
+          collex_menu <- paste0(collex_menu, "<li><a href=\"./?collex_id=", collections$collex_id[i], "\">", collections$collex_name[i], "</a> - ", collections$collex_definition[i], "</li>")
       }
             
       collex_menu <- paste0(collex_menu, "</ul></ul></p>")
@@ -181,6 +416,9 @@ server <- function(input, output, session) {
   
   # species ----
   output$species <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     collex_id <- query['collex_id']
     species <- query['species']
@@ -227,6 +465,8 @@ server <- function(input, output, session) {
   #Species selected----
   #species records header----
   output$records_h <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
     
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
@@ -249,6 +489,9 @@ server <- function(input, output, session) {
   
   #species records----
   output$records <- DT::renderDataTable({
+    js$getcookie()
+    req(input$jscookie)
+    
     species <- session$userData$species
     collex_id <- session$userData$collex_id
     recgrp_id <- session$userData$recgrp_id
@@ -310,6 +553,8 @@ server <- function(input, output, session) {
   
   #record_selected----
   output$record_selected <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
     
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
@@ -390,6 +635,8 @@ server <- function(input, output, session) {
   
   #Group of records----
   output$grouped_records <- DT::renderDataTable({
+    js$getcookie()
+    req(input$jscookie)
     
     records <- session$userData$records
     recgrp_id <- session$userData$recgrp_id
@@ -445,6 +692,9 @@ server <- function(input, output, session) {
 
   #Candidate Matches----
   output$candidatematches_h <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
     recgrp_id <- query['recgrp_id']
@@ -473,6 +723,8 @@ server <- function(input, output, session) {
   
   
   output$candidatematches <- DT::renderDataTable({
+    js$getcookie()
+    req(input$jscookie)
     
     species <- session$userData$species
     collex <- session$userData$collex
@@ -650,6 +902,9 @@ server <- function(input, output, session) {
   
   #Candidate Scores Box----
   output$candidatescores_box <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
     recgrp_id <- query['recgrp_id']
@@ -674,6 +929,9 @@ server <- function(input, output, session) {
   
   #candidatescores----
   output$candidatescores <- DT::renderDataTable({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
     recgrp_id <- query['recgrp_id']
@@ -702,7 +960,7 @@ server <- function(input, output, session) {
     output$map <- renderLeaflet({
       spp_map <- session$userData$spp_map
       spp_map_data <- session$userData$spp_map_data
-      print(spp_map_data)
+      #print(spp_map_data)
       leaflet_map(species_data = spp_map_data, candidate = TRUE, candidate_data = candidate_selected, markers = TRUE, markers_data = other_candidates)
     })
     
@@ -742,6 +1000,9 @@ server <- function(input, output, session) {
   
   # map_header ----
   output$map_header <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     query <- parseQueryString(session$clientData$url_search)
     species <- query['species']
     recgrp_id <- query['recgrp_id']
@@ -806,6 +1067,8 @@ server <- function(input, output, session) {
   
   #map----
   output$map <- renderLeaflet({
+    js$getcookie()
+    req(input$jscookie)
     
     spp_map <- session$userData$spp_map
     spp_map_data <- session$userData$spp_map_data
@@ -823,6 +1086,9 @@ server <- function(input, output, session) {
   
   #candidate_matches_info_h----
   output$candidate_matches_info_h <- renderUI({
+    js$getcookie()
+    req(input$jscookie)
+    
     req(input$candidatematches_rows_selected)
     
     query <- parseQueryString(session$clientData$url_search)
@@ -1147,6 +1413,27 @@ server <- function(input, output, session) {
   output$actions_box <- renderUI({
     req(input$candidatematches_rows_selected)
     
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    
+    user_id <- session$userData$user_id
+    
     tagList(
       HTML("<br><div class=\"panel panel-primary\">
         <div class=\"panel-heading\">
@@ -1181,7 +1468,7 @@ server <- function(input, output, session) {
     }
     
     uncert_utm <- the_feature$utm_min_bound_radius_m
-    print(uncert_utm)
+    #print(uncert_utm)
     
     tagList(
       u,
