@@ -191,7 +191,7 @@ def get_sources_html():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT *, TO_CHAR(no_features, '999,999,999,999') as no_feat, TO_CHAR(source_date::date, 'dd Mon yyyy') as date_f FROM data_sources ORDER BY datasource_id ASC")
+    cur.execute("SELECT *, TO_CHAR(no_features, '999,999,999,999') as no_feat, TO_CHAR(source_date::date, 'dd Mon yyyy') as date_f FROM data_sources WHERE is_online = 't' ORDER BY datasource_id ASC")
     logging.debug(cur.query)
     data = cur.fetchall()
     summary = sum(row['no_features'] for row in data)
@@ -247,7 +247,7 @@ def get_geom():
         with open('queries/get_geom/gbif.sql') as f:
             query_template = f.read()
         #Build query
-        cur.execute(query_template.format(uid = uid, species = species))
+        cur.execute(query_template.format(uid = uid, species = species, genus = species.split(' ')[0]))
     else:
         with open('queries/get_geom/{}.sql'.format(layer)) as f:
             query_template = f.read()
@@ -488,7 +488,7 @@ def get_wdpa():
             query_template = f.read()
         #Build query
         try:
-            cur.execute(query_template, {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius})
+            cur.execute(query_template, {'lat': lat, 'lng': lng, 'layer': layer})
             logging.debug(cur.query)
         except:
             vals = {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius}
@@ -683,7 +683,7 @@ def get_collexinfo():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT * FROM mg_collex WHERE collex_id = '{collex_id}'::UUID".format(collex_id = collex_id))
+    cur.execute("SELECT m.*, COUNT(DISTINCT r.species) as no_species, count(r.*) as no_recordgroups, sum(r.no_records) as no_records, count(s.*) AS no_selected_matches FROM mg_collex m LEFT JOIN mg_recordgroups r ON (m.collex_id = r.collex_id) LEFT JOIN mg_selected_candidates s ON (r.recgroup_id = s.recgroup_id) WHERE m.collex_id = '{collex_id}'::UUID GROUP BY m.collex_id".format(collex_id = collex_id))
     logging.debug(cur.query)
     data = cur.fetchone()
     cur.close()
@@ -712,7 +712,7 @@ def get_collex_spp():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT DISTINCT species FROM mg_recordgroups WHERE collex_id = '{collex_id}'::uuid AND no_candidates > 0".format(collex_id = collex_id))
+    cur.execute("SELECT DISTINCT species FROM mg_recordgroups WHERE collex_id = '{collex_id}'::uuid AND no_candidates > 0 AND recgroup_id NOT IN (SELECT recgroup_id FROM mg_selected_candidates WHERE collex_id = '{collex_id}'::uuid)".format(collex_id = collex_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -746,7 +746,7 @@ def get_spp_recgroups():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT * FROM mg_recordgroups WHERE species = '{species}' AND collex_id = '{collex_id}' AND no_candidates > 0 ORDER BY locality ASC, no_records DESC".format(species = species, collex_id = collex_id))
+    cur.execute("SELECT * FROM mg_recordgroups WHERE species = '{species}' AND collex_id = '{collex_id}'::uuid AND no_candidates > 0 AND recgroup_id NOT IN (SELECT recgroup_id FROM mg_selected_candidates WHERE collex_id = '{collex_id}'::uuid) ORDER BY locality ASC, no_records DESC".format(species = species, collex_id = collex_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -819,11 +819,11 @@ def get_candidates():
     if candidate_id == None:
         with open('queries/get_candidates.sql') as f:
             query_template = f.read()
-        cur.execute(query_template.format(species = species, recgroup_id = recgroup_id))
+        cur.execute(query_template.format(genus = species.split(' ')[0], species = species, recgroup_id = recgroup_id))
     else:
         with open('queries/get_candidate.sql') as f:
             query_template = f.read()
-        cur.execute(query_template.format(species = species, candidate_id = candidate_id))
+        cur.execute(query_template.format(genus = species.split(' ')[0], species = species, candidate_id = candidate_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()
@@ -914,7 +914,7 @@ def get_gbif_record():
     #Build query
     with open('queries/get_gbif.sql') as f:
             query_template = f.read()
-    cur.execute(query_template.format(species = species, uid = uid))
+    cur.execute(query_template.format(genus = species.split(' ')[0], species = species, uid = uid))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()

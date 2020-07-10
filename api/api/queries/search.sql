@@ -5,8 +5,8 @@ SELECT
     'NA' as parent,
     'Country' as type,
     0 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm0
 WHERE
@@ -19,8 +19,8 @@ SELECT
     name_0 as parent,
     engtype_1 as type,
     1 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm1
 WHERE
@@ -33,8 +33,8 @@ SELECT
     concat(name_1 || ', ' || name_0) as parent,
     engtype_2 as type,
     2 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm2
 WHERE
@@ -47,8 +47,8 @@ SELECT
     concat(name_2 || ', ' || name_1 || ', ' || name_0) as parent,
     engtype_3 as type,
     3 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm3
 WHERE
@@ -61,8 +61,8 @@ SELECT
     concat(name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0) as parent,
     engtype_4 as type,
     4 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm4
 WHERE
@@ -75,8 +75,8 @@ SELECT
     concat(name_4 || ', ' || name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0) as parent,
     engtype_5 as type,
     5 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     gadm5
 WHERE
@@ -89,8 +89,8 @@ SELECT
     c.country as parent,
     w.desig_eng as type,
     10 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     wdpa_polygons w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)
 WHERE
@@ -103,8 +103,8 @@ SELECT
     c.country as parent,
     w.desig_eng as type,
     10 as sortby,
-    st_x(the_geom) as longitude,
-    st_y(the_geom) as latitude
+    round(st_x(the_geom)::numeric, 5) as longitude,
+    round(st_y(the_geom)::numeric, 5) as latitude
 FROM
     wdpa_points w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)
 WHERE
@@ -171,6 +171,22 @@ WHERE
 UNION
 
 SELECT
+    uid,
+    full_name_nd_ro as name,
+    'gns' as layer,
+    gadm2 as parent,
+    null as type,
+    20 as sortby,
+    "long" as longitude,
+    lat as latitude
+FROM
+    gns
+WHERE
+    full_name_nd_ro ILIKE %(string)s
+
+UNION
+
+SELECT
     r.uid,
     r.name as name,
     'wikidata' as layer,
@@ -196,10 +212,115 @@ SELECT
     NULL as parent,
     type,
     30 as sortby,
-    st_x(centroid) as longitude,
-    st_y(centroid) as latitude
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
 FROM
     osm
 WHERE
+    name ILIKE %(string)s
+
+
+UNION
+
+SELECT
+    uid,
+    name as name,
+    'usa_rivers' as layer,
+    gadm2 as parent,
+    feature AS type,
+    30 as sortby,
+    round(st_x(centroid)::numeric, 5) as longitude,
+    round(st_y(centroid)::numeric, 5) as latitude
+FROM
+    usa_rivers
+WHERE
+    name ILIKE %(string)s
+
+
+
+UNION
+
+SELECT
+    uid,
+    name as name,
+    'usa_histplaces_points' as layer,
+    stateprovince as parent,
+    null AS type,
+    30 as sortby,
+    round(st_x(the_geom)::numeric, 5) as longitude,
+    round(st_y(the_geom)::numeric, 5) as latitude
+FROM
+    usa_histplaces_points
+WHERE
+    name ILIKE %(string)s
+
+
+
+UNION
+
+SELECT
+    uid,
+    name as name,
+    'usa_histplaces_poly' as layer,
+    stateprovince as parent,
+    null AS type,
+    30 as sortby,
+    round(st_x(st_centroid(the_geom))::numeric, 5) as longitude,
+    round(st_y(st_centroid(the_geom))::numeric, 5) as latitude
+FROM
+    usa_histplaces_poly
+WHERE
+    name ILIKE %(string)s
+
+
+UNION
+
+
+SELECT
+    uid,
+    name as name,
+    'usgs_nat_struct' as layer,
+    gadm2 as parent,
+    null AS type,
+    30 as sortby,
+    round(st_x(the_geom)::numeric, 5) as longitude,
+    round(st_y(the_geom)::numeric, 5) as latitude
+FROM
+    usgs_nat_struct
+WHERE
+    name ILIKE %(string)s
+
+
+
+  UNION 
+
+  SELECT
+    uid,
+    name as name,
+    'topo_map_points' as layer,
+    gadm2 as parent,
+    type,
+    30 as sortby,
+    round(st_x(the_geom)::numeric, 5) as longitude,
+    round(st_y(the_geom)::numeric, 5) as latitude
+  FROM 
+    topo_map_points
+  WHERE 
+    name ILIKE %(string)s
+
+   UNION 
+
+  SELECT
+    uid,
+    name as name,
+    'topo_map_polygons' as layer,
+    gadm2 as parent,
+    type,
+    30 as sortby,
+    round(st_x(st_centroid(m.the_geom))::numeric, 5) as longitude,
+    round(st_y(st_centroid(m.the_geom))::numeric, 5) as latitude,
+  FROM 
+    topo_map_polygons
+  WHERE 
     name ILIKE %(string)s
 

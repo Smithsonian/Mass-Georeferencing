@@ -35,7 +35,29 @@ WITH score AS (
   WHERE 
     s.feature_id = m.gbifid AND
     m.species = '{species}' AND
-    s.data_source = ANY('{{gbif.species,gbif.genus}}')
+    s.data_source = 'gbif.species'
+
+  UNION
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.locality as name,
+    m.stateprovince || ', ' || m.countrycode as located_at,
+    null as type,
+    decimallongitude as longitude,
+    decimallatitude as latitude,
+    m.gbifid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    CASE WHEN m.coordinateuncertaintyinmeters = '' THEN NULL ELSE m.coordinateuncertaintyinmeters::numeric END as uncertainty_m
+  FROM 
+    score s,                                  
+    gbif m
+  WHERE 
+    s.feature_id = m.gbifid AND
+    m.species LIKE '{genus} %' AND
+    s.data_source = 'gbif.genus'
 
   UNION
 
@@ -288,3 +310,154 @@ WITH score AS (
   WHERE 
     s.feature_id::uuid = m.uid AND
     s.data_source = 'osm'
+
+  UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.gadm2 AS located_at,
+    null as type,
+    round(st_x(m.the_geom)::numeric, 5) as longitude,
+    round(st_y(m.the_geom)::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    NULL as uncertainty_m
+  FROM 
+    score s,                               
+    wikidata m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'wikidata'
+
+
+  UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.stateprovince as located_at,
+    m.type,
+    round(st_x(m.the_geom)::numeric, 5) as longitude,
+    round(st_y(m.the_geom)::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    NULL as uncertainty_m
+  FROM 
+    score s,                               
+    topo_map_points m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'topo_map_points'
+
+   UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.stateprovince as located_at,
+    null as type,
+    round(st_x(st_centroid(m.the_geom))::numeric, 5) as longitude,
+    round(st_y(st_centroid(m.the_geom))::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    NULL as uncertainty_m
+  FROM 
+    score s,                               
+    topo_map_polygons m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'topo_map_polygons'
+
+  UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.gadm2 as located_at,
+    feature as type,
+    round(st_x(st_centroid(m.centroid))::numeric, 5) as longitude,
+    round(st_y(st_centroid(m.centroid))::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    NULL as uncertainty_m
+  FROM 
+    score s,                               
+    usa_rivers m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'usa_rivers'
+
+  UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.stateprovince as located_at,
+    null as type,
+    round(st_x(m.the_geom)::numeric, 5) as longitude,
+    round(st_y(m.the_geom)::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    uncertainty_m::numeric
+  FROM 
+    score s,                               
+    usa_histplaces_points m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'usa_histplaces_points'
+
+
+UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.stateprovince as located_at,
+    null as type,
+    round(st_x(st_centroid(m.the_geom))::numeric, 5) as longitude,
+    round(st_y(st_centroid(m.the_geom))::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    uncertainty_m::numeric
+  FROM 
+    score s,                               
+    usa_histplaces_poly m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'usa_histplaces_poly'
+
+
+UNION 
+
+  SELECT
+    s.data_source,
+    s.score,
+    m.name,
+    m.gadm2 as located_at,
+    null as type,
+    round(st_x(m.the_geom)::numeric, 5) as longitude,
+    round(st_y(m.the_geom)::numeric, 5) as latitude,
+    m.uid::text as feature_id,
+    s.candidate_id,
+    s.no_features,
+    null AS uncertainty_m
+  FROM 
+    score s,                               
+    usgs_nat_struct m
+  WHERE 
+    s.feature_id::uuid = m.uid AND
+    s.data_source = 'usgs_nat_struct'
+

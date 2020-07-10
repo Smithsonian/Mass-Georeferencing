@@ -16,7 +16,13 @@ collex_id = ""
 no_cores = 8
 
 #Which layers to use
-layers = ["gbif.species", "gbif.genus", "wdpa", "gadm", "gnis", "gns", "global_lakes", "geonames"]
+layers = ["gbif.species", "gbif.genus", "wdpa", "gadm", "gnis", "gns", "global_lakes", "geonames", "hist_counties", "tiger", "wikidata", "osm", "topos", "elevation", "usa_histplaces", "usa_rivers", "usgs_nat_struct"]
 
 #Run spatial match, requires PostGIS
 spatial_match = True
+
+
+#Collex_polygon
+collex_polygon = False
+
+

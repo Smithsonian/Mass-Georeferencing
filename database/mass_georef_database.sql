@@ -134,6 +134,7 @@ DROP TABLE IF EXISTS mg_occurrences CASCADE;
 CREATE TABLE mg_occurrences
 (
     mg_occurrenceid uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collex_id uuid NOT NULL,
     occurrence_source text NOT NULL,
     occurrenceid text,
     gbifid bigint,
@@ -225,6 +226,7 @@ CREATE TABLE mg_occurrences
     recordedby text);
 CREATE INDEX mg_occurrences_occid_idx ON mg_occurrences USING BTREE(occurrenceID);
 CREATE INDEX mg_occurrences_gbifid_idx ON mg_occurrences USING BTREE(gbifID);
+CREATE INDEX mg_occurrences_collex_idx ON mg_occurrences USING BTREE(collex_id);
 CREATE INDEX mg_occurrences_date_idx ON mg_occurrences USING BTREE(eventdate);
 CREATE INDEX mg_occurrences_mgocid_idx ON mg_occurrences USING BTREE(mg_occurrenceid);
 CREATE INDEX mg_occurrences_species_idx ON mg_occurrences USING gin (species gin_trgm_ops);
@@ -431,3 +433,21 @@ CREATE TRIGGER trigger_updated_at_mg_scoretypes
 
 
 
+
+
+
+--Areas to include
+DROP TABLE IF EXISTS mg_polygons CASCADE;
+CREATE TABLE mg_polygons
+(
+    table_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    the_geom geometry(MultiPolygon, 4326),
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_polygons_cid_idx ON mg_polygons USING BTREE(collex_id);
+CREATE INDEX mg_polygons_geom_idx ON mg_polygons USING GIST(the_geom);
+CREATE TRIGGER trigger_updated_at_mg_polygons
+  BEFORE UPDATE ON mg_polygons
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();

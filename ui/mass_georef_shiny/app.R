@@ -6,7 +6,7 @@ library(jsonlite)
 library(countrycode)
 #library(parallel)
 library(shinyWidgets)
-library(rgdal)
+#library(rgdal)
 library(shinycssloaders)
 library(dplyr)
 library(sp)
@@ -15,6 +15,7 @@ library(rgbif)
 #library(DBI)
 #library(httr)
 library(shinyjs)
+library(rmarkdown)
 
 
 #Settings----
@@ -92,6 +93,9 @@ ui <- fluidPage(
              #h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main"),
              uiOutput("title"),
              uiOutput("main"),
+             #Keep login from displaying form until doc has loaded, otherwise the cookie is null and will briefly
+             # ask for login info
+             #rmarkdown::render_delayed(uiOutput("userlogin")),
              uiOutput("userlogin"),
              uiOutput("maingroup"),
              uiOutput("species"),
@@ -112,7 +116,7 @@ ui <- fluidPage(
              shinycssloaders::withSpinner(leafletOutput("map", width = "100%", height = "520px")),
              fluidRow(
                column(width = 4,
-                      div(uiOutput("candidate_matches_info_h"), style = "font-size:80%")
+                      div(uiOutput("candidate_matches_info_h"))
                ),
                column(width = 4,
                       uiOutput("candidatescores_box"),
@@ -161,8 +165,6 @@ server <- function(input, output, session) {
                             encode = "form"
       )
       cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-      #print("164 cookie_check")
-      #print(cookie_check)
       if (length(cookie_check$user_id) != 1){
         status('out168')
         js$rmcookie()
@@ -175,13 +177,15 @@ server <- function(input, output, session) {
   #userlogin----
   output$userlogin <- renderUI({
     js$getcookie()
-    if (is.null(input$jscookie) || input$jscookie == ""){
+    #if (is.null(input$jscookie) || input$jscookie == ""){
+    if (is.null(input$jscookie)){
       tagList(
         br(),br(),br(),br(),
         textInput("username", "Username:"),
         passwordInput("password", "Password:"),
         actionButton("login", "Login")
       )
+      
     }else{
       api_req <- httr::POST(URLencode(paste0(api_url, "mg/check_cookie")),
                             body = list(cookie = input$jscookie),
@@ -294,7 +298,9 @@ server <- function(input, output, session) {
     req(input$jscookie)
     
     tagList(
-      tags$small(session$userData$username, "  ", actionLink('logout', '[Logout]'))
+      HTML("<div class = \"pull-right\">"),
+      tags$small(session$userData$username, "  ", actionLink('logout', '[Logout]')),
+      HTML("</div>")
     )
   }) 
   
@@ -319,11 +325,12 @@ server <- function(input, output, session) {
     query <- parseQueryString(session$clientData$url_search)
     collex_id <- query['collex_id']
     
-    if (collex_id == "NULL"){
-      h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main")
-    }else{
-      h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href=paste0("./?collex_id=", collex_id))), id = "title_main")
-    }
+    # if (collex_id == "NULL"){
+    #   h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main")
+    # }else{
+    #   h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href=paste0("./?collex_id=", collex_id))), id = "title_main")
+    # }
+    h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main")
   })
   
   #main----
@@ -333,8 +340,7 @@ server <- function(input, output, session) {
     
     if (collex_id == "NULL"){
       shinyWidgets::panel(
-        p("To use this app, select a collection to see the list of species available for georeferencing."),
-        p("This is a test system and does not contain all the species in each collection"),
+        p("To use this app, select a dataset to see the list of species available for georeferencing."),
         p("This app was made by the Digitization Program Office, OCIO."),
         heading = "Welcome",
         status = "primary"
@@ -426,6 +432,16 @@ server <- function(input, output, session) {
     if (collex_id == "NULL"){req(FALSE)}
     if (species != "NULL"){req(FALSE)}
     
+    api_req <- httr::POST(URLencode(paste0(api_url, "mg/collex_info")),
+                          body = list(collex_id = collex_id),
+                          httr::add_headers(
+                            "X-Api-Key" = app_api_key
+                          ),
+                          encode = "form"
+    )
+    
+    collex <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+    
     api_req <- httr::POST(URLencode(paste0(api_url, "mg/collex_species")),
                           body = list(collex_id = collex_id),
                           httr::add_headers(
@@ -433,7 +449,6 @@ server <- function(input, output, session) {
                           ),
                           encode = "form"
     )
-    api_req
     
     species <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
     
@@ -443,7 +458,17 @@ server <- function(input, output, session) {
     
     tagList(
       selectInput("species", "Select a species:", species),
-      actionButton("submit_species", "Submit")
+      actionButton("submit_species", "Georeference species records", class = "btn-primary"),
+      br(),
+      hr(),
+      
+      h4("Dataset statistics:"),
+      
+      HTML(paste0("<dl class=\"dl-horizontal\">
+                  <dt>", prettyNum(collex$no_species, big.mark = ",", scientific = FALSE), "</dt><dd>Species</dd>
+                  <dt>", prettyNum(collex$no_records, big.mark = ",", scientific = FALSE), "</dt><dd>No. records</dd>
+                  <dt>", prettyNum(collex$no_recordgroups, big.mark = ",", scientific = FALSE), "</dt><dd>No. record groups</dd>
+                  <dt>", prettyNum(collex$no_selected_matches, big.mark = ",", scientific = FALSE), " (", round((collex$no_selected_matches/collex$no_recordgroups) * 100, 2), "%)</dt><dd>Georeferenced record groups</dd></dl>"))
     )
   })
   
@@ -745,7 +770,6 @@ server <- function(input, output, session) {
                             encode = "form"
       )
       
-      #print(api_req$request)
       candidates <- as.data.frame(fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE))
       
       candidates$longitude <- as.numeric(candidates$longitude)
@@ -756,6 +780,7 @@ server <- function(input, output, session) {
       if (api_req$status != 200){
          results_table <- candidates
       }else{
+        
          results <- candidates %>%
             dplyr::arrange(match(data_source, c("gbif.species", "gbif.genus", "wdpa_polygons", "wdpa_points", "global_lakes", "geonames", "gadm5", "gadm4", "gadm3", "gadm2", "gadm1", "gadm0"))) %>% 
             dplyr::arrange(dplyr::desc(score))
@@ -772,9 +797,15 @@ server <- function(input, output, session) {
            }else if (results$data_source[i] == "gbif.species"){
              results$name[i] <- paste0(results$name[i], "<img src=\"gbif_logo.png\" title = \"Locality from a GBIF record for the species\" alt = \"Locality from a GBIF record for the species\" height = \"16px\" class=\"pull-right\">")
            }else if (results$data_source[i] == "gbif.genus"){
-             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-map-marker pull-right\" aria-hidden=\"true\" title = \"Locality from a GBIF record for the genus\"></span>")
+             results$name[i] <- paste0(results$name[i], "<img src=\"gbif_logo.png\" title = \"Locality from a GBIF record for the species\" alt = \"Locality from a GBIF record for the genus\" height = \"16px\" class=\"pull-right\">")
            }else if (results$data_source[i] == "gbif.family"){
-             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-map-marker pull-right\" aria-hidden=\"true\" title = \"Locality from a GBIF record for the family\"></span>")
+             results$name[i] <- paste0(results$name[i], "<img src=\"gbif_logo.png\" title = \"Locality from a GBIF record for the species\" alt = \"Locality from a GBIF record for the family\" height = \"16px\" class=\"pull-right\">")
+           }else if (results$data_source[i] == "wikidata"){
+             results$name[i] <- paste0(results$name[i], "<img src=\"wikidata-logo.png\" title = \"Locality from Wikidata\" alt = \"Locality from Wikidata\" height = \"12px\" class=\"pull-right\">")
+           }else if (results$data_source[i] == "osm"){
+             results$name[i] <- paste0(results$name[i], "<img src=\"osm_logo.png\" title = \"Locality from Wikidata\" alt = \"Locality from OpenStreetMap\" height = \"16px\" class=\"pull-right\">")
+           }else if (results$data_source[i] == "topo_map_points" || results$data_source[i] == "topo_map_polygons"){
+             results$name[i] <- paste0(results$name[i], "<img src=\"usgs_logo.png\" title = \"Locality from Topo Vector Data\" alt = \"Locality from Topo Vector Data\" height = \"16px\" class=\"pull-right\">")
            }else if (results$data_source[i] %in% wdpa_layers){
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-leaf pull-right\" aria-hidden=\"true\" title = \"Protected Area\"></span>")
            }else if (results$data_source[i] == "geonames"){
@@ -785,6 +816,8 @@ server <- function(input, output, session) {
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-pushpin pull-right\" aria-hidden=\"true\" title = \"Locality from GNIS\"></span>")
            }else if (results$data_source[i] == "gns"){
              results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-pushpin pull-right\" aria-hidden=\"true\" title = \"Locality from GNS\"></span>")
+           }else if (results$data_source[i] == "usa_rivers"){
+             results$name[i] <- paste0(results$name[i], "<span class=\"glyphicon glyphicon-tint pull-right\" aria-hidden=\"true\" title = \"Locality from USA Rivers and Streams\"></span>")
            }
          }
            
@@ -793,15 +826,22 @@ server <- function(input, output, session) {
          Encoding(results_table$name) <- "ASCII"
          Encoding(results_table$located_at) <- "ASCII"
          names(results_table) <- c("Locality", "Located at", "Mean Score")
-       
+         
       }
        
       #Display map of candidates----
       output$map <- renderLeaflet({
         spp_map <- session$userData$spp_map
         spp_map_data <- session$userData$spp_map_data
+        
+        query <- parseQueryString(session$clientData$url_search)
 
-        leaflet_map(species_data = spp_map_data, markers = TRUE, markers_data = candidates)
+        if (is.null(spp_map_data)){
+          leaflet_map(species_map = FALSE, markers = TRUE, markers_data = candidates)
+        }else{
+          leaflet_map(species_data = spp_map_data, markers = TRUE, markers_data = candidates, query = query)
+        }
+        
       })
       
       output$map_header <- renderUI({
@@ -811,20 +851,26 @@ server <- function(input, output, session) {
         )
       })
       
-      if (dim(results_table)[1]==1){
-         DT::datatable(results_table,
-                       escape = FALSE,
-                       options = list(searching = FALSE,
-                                      ordering = TRUE,
-                                      pageLength = 8,
-                                      paging = FALSE,
-                                      bLengthChange = FALSE#,
-                                      #scrollY = "440px"
-                       ),
-                       rownames = FALSE,
-                       selection = list(mode = 'single', selected = c(1)),
-                       caption = "Select a locality to show on the map")
-       }else{
+      
+      # if (dim(results_table)[1]==1){
+      #    DT::datatable(results_table,
+      #                  escape = FALSE,
+      #                  options = list(searching = FALSE,
+      #                                 ordering = TRUE,
+      #                                 pageLength = 8,
+      #                                 paging = FALSE,
+      #                                 bLengthChange = FALSE#,
+      #                                 #scrollY = "440px"
+      #                  ),
+      #                  rownames = FALSE,
+      #                  selection = list(mode = 'single', selected = c(1)),
+      #                  caption = "Select a locality to show on the map") %>% 
+      #       formatStyle(c('Mean Score'),
+      #                   background = styleColorBar(range(50, 100), 'lightblue'),
+      #                   backgroundSize = '98% 88%',
+      #                   backgroundRepeat = 'no-repeat',
+      #                   backgroundPosition = 'center')
+      #  }else{
          if (candidate_id == "NULL"){
            DT::datatable(results_table,
                          escape = FALSE,
@@ -858,13 +904,13 @@ server <- function(input, output, session) {
                          rownames = FALSE,
                          selection = list(mode = 'single', selected = c(which_row)),
                          caption = "Select a locality to show on the map") %>% 
-             formatStyle(c('Mean Score'),
+                    formatStyle(c('Mean Score'),
                          background = styleColorBar(range(50, 100), 'lightblue'),
                          backgroundSize = '98% 88%',
                          backgroundRepeat = 'no-repeat',
                          backgroundPosition = 'center')
          }
-       }
+       #}
      }
   }, server = FALSE)
 
@@ -888,12 +934,12 @@ server <- function(input, output, session) {
     
     candidates <- session$userData$candidates
     candidate_selected <- candidates[input$candidatematches_rows_selected,]
-    
+ 
     if (candidate_id == candidate_selected$candidate_id){
       req(FALSE)
     }
-    
-    output$main <- renderUI({
+   
+     output$main <- renderUI({
       HTML(paste0("<script>$(location).attr('href', './?collex_id=", collex_id, "&species=", species, "&recgrp_id=", recgrp_id, "&candidate_id=", candidate_selected$candidate_id, "')</script>"))
     })
     
@@ -915,10 +961,12 @@ server <- function(input, output, session) {
       req(FALSE)
     }
     
+    req(input$candidatematches_rows_selected)
+    
     tagList(
       HTML("<br><div class=\"panel panel-success\">
         <div class=\"panel-heading\">
-        <h3 class=\"panel-title\">Scores for this Candidate Locality</h3>
+        <h3 class=\"panel-title\">Scores for the Candidate Locality Selected</h3>
         </div>
         <div class=\"panel-body\">"),
       div(DT::dataTableOutput("candidatescores"), style = "font-size:80%"),
@@ -954,7 +1002,9 @@ server <- function(input, output, session) {
     #print(candidate_selected)
     other_candidates <- candidates[candidates$candidate_id != candidate_id,]
     
-    other_candidates$link <- paste0(other_candidates$name, "<br>Located at: ", other_candidates$located_at, "<br>Source: ", other_candidates$data_source, "<br>Uncertainty (m): ", prettyNum(other_candidates$uncertainty_m, big.mark = ",", scientific = FALSE), "<br>Score: ", other_candidates$score, "<br><small><a href=\"./?collex_id=", collex_id, "&species=", species, "&recgrp_id=", recgrp_id, "&candidate_id=", other_candidates$candidate_id, "\">Select this locality</a></small>")
+    if(dim(other_candidates)[1] > 0){
+      other_candidates$link <- paste0(other_candidates$name, "<br>Located at: ", other_candidates$located_at, "<br>Source: ", other_candidates$data_source, "<br>Uncertainty (m): ", prettyNum(other_candidates$uncertainty_m, big.mark = ",", scientific = FALSE), "<br>Score: ", other_candidates$score, "<br><small><a href=\"./?collex_id=", collex_id, "&species=", species, "&recgrp_id=", recgrp_id, "&candidate_id=", other_candidates$candidate_id, "\">Select this locality</a></small>")
+    }
     
     #Display map of selected candidate----
     output$map <- renderLeaflet({
@@ -1136,12 +1186,15 @@ server <- function(input, output, session) {
       
       the_feature <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
       
+      print(1181)
+      print(the_feature)
+      
       uncert <- the_feature$coordinateuncertaintyinmeters
       
       if (is.na(uncert)){
         uncert <- "NA"
       }else{
-        uncert <- paste0(uncert, " m (yellow buffer in map)")
+        uncert <- paste0(uncert, " m")
       }
     }else{
       data_source = candidate_info$data_source
@@ -1160,7 +1213,7 @@ server <- function(input, output, session) {
       
       uncert <- the_feature$min_bound_radius_m
       if (is.null(uncert)){
-        uncert <- "NA"
+        uncert <- "<abbr title=\"No uncertainty or area was given in the source\">NA</abbr>"
       }else{
           uncert <- paste0(uncert, " m<br>(yellow buffer in map; from polygon area)")
       }
@@ -1172,17 +1225,30 @@ server <- function(input, output, session) {
           <div class=\"panel-heading\">
           <h3 class=\"panel-title\">Candidate Locality Selected</h3>
           </div>
-          <div class=\"panel-body\">
+          <div class=\"panel-body\" style = \"font-size:80%;\">
               <dl class=\"dl-horizontal\">
                   <dt>Name</dt><dd>", the_feature$name, "</dd>
                   <dt>Located at</dt><dd>", the_feature$located_at, "</dd>
                   <dt>Locality uncertainty (m)</dt><dd>", uncert, "</dd>")
       
       
+      
+      api_req_d <- httr::POST(URLencode(paste0(api_url, "api/data_sources")),
+                            httr::add_headers(
+                              "X-Api-Key" = app_api_key
+                            ),
+                            encode = "form"
+      )
+      
+      data_sources <- fromJSON(httr::content(api_req_d, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+      
+      data_source_info <- data_sources[data_sources$datasource_id == data_source, ]
+      
+      
       if (data_source == "gbif"){
         the_feature <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-
-        html_to_print <- paste0(html_to_print, "<dt>Source</dt><dd><a href=\"https://www.gbif.org/occurrence/", the_feature$gbifid, "\" target=_blank title=\"Open record in GBIF\">GBIF record (", the_feature$gbifid, ")</a></dd>
+        
+        html_to_print <- paste0(html_to_print, "<dt>Source</dt><dd><abbr title=\"", data_source_info$source_title, "\"><a href=\"https://www.gbif.org/occurrence/", the_feature$gbifid, "\" target=_blank title=\"Open record in GBIF\">GBIF record (", the_feature$gbifid, ")</a></abbr></dd>
                     <dt>Dataset</dt><dd><a href=\"https://www.gbif.org/dataset/", the_feature$datasetkey, "\" target=_blank title=\"View dataset in GBIF\">", the_feature$dataset, "</a></dd>
                     <dt>Institution</dt><dd>", the_feature$organizationname, "</dd>
                     <dt>Date</dt><dd>", the_feature$eventdate, "</dd>
@@ -1202,7 +1268,7 @@ server <- function(input, output, session) {
           }
         }
       }else{
-        html_to_print <- paste0(html_to_print, "<dt>Source</dt><dd>", data_source, "</dd>
+        html_to_print <- paste0(html_to_print, "<dt>Source</dt><dd><abbr title=\"", data_source_info$source_title, "\">", data_source, " </abbr></dd>
                               <dt>Score</dt><dd>", candidate_selected$score, "</dd>")
       }
     
@@ -1244,6 +1310,9 @@ server <- function(input, output, session) {
   
   
   
+  
+  
+  
   #Folder progress----
   observeEvent(input$help, {
     
@@ -1257,16 +1326,19 @@ server <- function(input, output, session) {
     data_sources <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
     
     data_sources <- data_sources %>% filter(is_online == TRUE) %>% 
-      select(-datasource_id, -source_notes, -source_date, -source_refresh, -is_online) %>% 
-      mutate("No. of features" = prettyNum(no_features, big.mark = ",", scientific = FALSE)) %>% 
+      select(-datasource_id, -source_notes, -source_date, -source_refresh, -is_online)
+    
+    total_feats <- prettyNum(sum(data_sources$no_features), big.mark = ",", scientific = FALSE)
+    
+    data_sources <- data_sources %>% mutate("No. of features" = prettyNum(no_features, big.mark = ",", scientific = FALSE)) %>% 
       select(-no_features) %>% 
-      mutate("URL" = paste0("<a href=\"", source_url, "\" target=_blank title = \"Open link to source\">", source_url, "</a>")) %>% 
+      mutate("Source" = paste0("<a href=\"", source_url, "\" target=_blank title = \"Open link to source\">", source_title, "</a>")) %>% 
       arrange(source_title) %>% 
-      rename("Source" = source_title) %>% 
-      select(-source_url)
+      select(-source_url, -source_title) %>% 
+      select('Source', 'No. of features')
     
     showModal(modalDialog(
-      size = "l",
+      size = "m",
       title = "Help",
       br(),
       p("This application is a demo on an approach to georeference records on a massive scale. The georeferencing clusters records by species that share similar localities. Then, the system will display possible matches based on similar localities in GBIF, as well as locations from other databases."),
@@ -1284,6 +1356,8 @@ server <- function(input, output, session) {
                     ),
                     rownames = FALSE,
                     selection = 'none')),
+      br(),
+      HTML(paste0("<p class=\"pull-right\"><strong>Total number of features: ", total_feats, "</strong></p><br>")),
       easyClose = TRUE
     ))
   })
@@ -1338,7 +1412,9 @@ server <- function(input, output, session) {
       #Actions
       #actions_box----
       output$actions_box <- renderUI({
-        req(input$candidatematches_rows_selected)
+        
+        #req(input$candidatematches_rows_selected)
+        req(input$map_click)
         
         tagList(
           HTML("<br><div class=\"panel panel-info\">
@@ -1346,14 +1422,20 @@ server <- function(input, output, session) {
         <h3 class=\"panel-title\">Save Click Locality</h3>
         </div>
         <div class=\"panel-body\">"),
-          uiOutput("actions_click"),
+          uiOutput("actions_click", style = "font-size:80%"),
           HTML("</div></div>")
         )
       })
       
       #actions----
       output$actions_click <- renderUI({
-        req(input$candidatematches_rows_selected)
+        #req(input$candidatematches_rows_selected)
+        req(input$map_click)
+        
+        records <- session$userData$records
+        recgrp_id <- session$userData$recgrp_id
+        
+        this_row <- records[records$recgroup_id == recgrp_id,]
         
         query <- parseQueryString(session$clientData$url_search)
         species <- query['species']
@@ -1363,10 +1445,11 @@ server <- function(input, output, session) {
         
         tagList(
           sliderInput("uncert_slider", "Set the Uncertainty Value (in meters):",
-                  min = 0, max = 10000,
+                  min = 0, max = 20000,
                   value = uncertainty_m, step = 25, width = "100%"),
-          p(textInput("save_notes", "Notes:")),
-          p(actionButton("click_rec_save", "Save location for the records", class = "btn-primary"))
+          textInput("save_locality", label = "Locality name:", value = this_row$locality),
+          textInput("save_notes", "Notes:"),
+          actionButton("click_rec_save", "Save location for the records", class = "btn-primary")
         )
         
       })
@@ -1461,19 +1544,19 @@ server <- function(input, output, session) {
     uncert <- the_feature$min_bound_radius_m
     if (is.null(uncert)){
       u <- sliderInput("save_uncert", "Set the Uncertainty Value (in meters):",
-                  min = 0, max = 10000,
+                  min = 0, max = 20000,
                   value = 0, step = 25, width = "100%")
     }else{
-      u <- p("Uncertainty: ", uncert)
+      u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
     }
     
-    uncert_utm <- the_feature$utm_min_bound_radius_m
+    #uncert_utm <- the_feature$utm_min_bound_radius_m
     #print(uncert_utm)
     
     tagList(
       u,
       p(textInput("save_notes", "Notes:")),
-      p(actionButton("click_rec_save", "Save location for the records", class = "btn-primary"))
+      p(actionButton("click_rec_save", "Review match", class = "btn-primary"))
     )
   })
   
@@ -1496,29 +1579,128 @@ server <- function(input, output, session) {
   #click_rec_save modal----
   observeEvent(input$click_rec_save, {
     
+    records <- session$userData$records
+    recgrp_id <- session$userData$recgrp_id
+    species <- session$userData$species
+    collex_id <- session$userData$collex_id
+    
+    uncert_slider <- session$userData$uncert_slider
+    
+    req(records)
+    req(recgrp_id)
+    req(species)
+    req(collex_id)
+    
+    #Get record group
+    this_row <- records[records$recgroup_id == recgrp_id,]
+    
+    #Selected match
+    the_feature <- session$userData$the_feature
+    #Get uncertainty
+    uncert <- uncert_slider
+    if (is.null(uncert)){
+      input_uncert <- input$save_uncert
+    }else{
+      input_uncert <- uncert
+    }
+    
+    req(input$map_click)
+    
+    #Get clickmap
+    p <- input$map_click
+    
+    api_req <- httr::POST(URLencode(paste0(api_url, "api/intersection")),
+                          body = list(lat = p["lat"],
+                                      lng = p["lng"],
+                                      layer = 'gadm'),
+                          httr::add_headers(
+                            "X-Api-Key" = app_api_key
+                          ),
+                          encode = "form"
+    )
+    
+    api_locality <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+    #print(api_locality)
+    
+    locality <- data.frame(api_locality)
+    
+    located_at <- dplyr::filter(locality, intersection.layer == 'gadm2')
+    #print(located_at)
+    
+    
+    lat_to_save <- format(round(as.numeric(p["lat"]), digits = 5), nsmall = 5)
+    lng_to_save <- format(round(as.numeric(p["lng"]), digits = 5), nsmall = 5)
+    data_source <- "Custom location"
+    located_at <- located_at$intersection.located_at
+    name <- this_row$locality
+  
     showModal(modalDialog(
       size = "l",
       title = "Save match",
+      fluidRow(
+        column(width = 6,
+               HTML("<div class=\"panel panel-primary\">
+        <div class=\"panel-heading\">
+        <h3 class=\"panel-title\">Record Group</h3>
+        </div>
+        <div class=\"panel-body\">"),
+               HTML(paste0("<dl>
+                      <dt>Locality</dt><dd>", this_row$locality, "</dd>
+                      <dt>No. records</dt><dd>", this_row$no_records, "</dd>
+                    ")),
+              HTML(paste0("
+                      <dt>Species</dt><dd><em>", this_row$species, "</em></dd>
+                      <dt>Family</dt><dd>", this_row$family, "</dd>
+                    </dl>")),
+               
+               HTML("</div></div>")
+        ),
+        column(width = 6,
+               HTML("<div class=\"panel panel-success\">
+        <div class=\"panel-heading\">
+        <h3 class=\"panel-title\">Selected Match</h3>
+          </div>
+          <div class=\"panel-body\">
+              <dl>
+                  <dt>Name</dt><dd>", name, "</dd>
+                  <dt>Located at</dt><dd>", located_at, "</dd>
+                  <dt>Locality uncertainty (m)</dt><dd>", prettyNum(uncert_slider, big.mark = ",", scientific = FALSE), "</dd>
+                  <dt>Source</dt><dd>", data_source, "</dd>
+                  <dt>Lat/Lon</dt><dd>", lat_to_save, " / ", lng_to_save, "</dd>
+              </dl>"
+               ),
+               
+               HTML("</div></div>")
+        )
+      ),
       br(),
-      p("Record Group"),
-      p("Candidate Selected"),
-      
+      p(actionButton("write_db", "Save locality for these records", class = "btn-primary")),
       easyClose = TRUE
     ))
   })
   
   
   
-  
-  
-  
-  
+  #click_rec_save modal----
+  observeEvent(input$write_db, {
+    
+    records <- session$userData$records
+    recgrp_id <- session$userData$recgrp_id
+    species <- session$userData$species
+    collex_id <- session$userData$collex_id
+    
+    removeModal()
+    output$main <- renderUI({
+      HTML(paste0("<script>$(location).attr('href', './?collex_id=", collex_id, "&species=", species, "')</script>"))
+    })
+    
+  })
   
   
   
   # footer ----
   output$footer <- renderUI({
-    HTML(paste0("<br><br><br><div class=\"footer navbar-fixed-bottom\"><br><p>&nbsp;&nbsp;<a href=\"http://dpo.si.edu\" target = _blank><img src=\"dpologo.jpg\"></a> | ", app_name, ", ver. ", app_ver, " | ", actionLink("help", label = "Help"), " | <a href=\"", github_link, "\" target = _blank>Source code</a></p></div>"))  
+    HTML(paste0("<br><br><br><div class=\"footer navbar-fixed-bottom\"><br><p>&nbsp;&nbsp;<a href=\"http://dpo.si.edu\" target = _blank><img src=\"dpologo.jpg\"></a> | ", app_name, ", ver. ", app_ver, " | ", actionLink("help", label = "Help/Data Sources"), " | <a href=\"", github_link, "\" target = _blank>Source code</a></p></div>"))  
   })
 }
 

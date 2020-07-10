@@ -16,6 +16,26 @@ WITH record AS (
 	WHERE
 		species = '{species}' AND
 		gbifid = '{uid}'
+
+	UNION
+
+	SELECT
+		gbifid,
+		ST_AsGeoJSON(the_geom) as the_geom_json,
+		the_geom,
+		locality as name,
+		'point' as geom_type,
+		datasetkey,
+		eventdate, 
+		decimallatitude AS latitude,
+		decimallongitude AS longitude,
+		CASE WHEN coordinateuncertaintyinmeters = '' THEN NULL ELSE coordinateuncertaintyinmeters END as coordinateuncertaintyinmeters,
+		issue
+	FROM
+		gbif
+	WHERE
+		species LIKE '{genus} %' AND
+		gbifid = '{uid}'
 	)
 
 SELECT

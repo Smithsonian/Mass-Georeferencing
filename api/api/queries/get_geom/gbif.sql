@@ -18,6 +18,25 @@ WITH data as
 		species = '{species}' AND
 		gbifid = '{uid}'
 
+	UNION
+
+	SELECT
+		the_geom as point_geom,
+		ST_AsGeoJSON(the_geom) as the_geom,
+		gbifid,
+		locality as name,
+		st_x(the_geom) as longitude,
+		st_y(the_geom) as latitude,
+		st_x(the_geom) as xmin,
+		st_x(the_geom) as xmax,
+		st_y(the_geom) as ymin,
+		st_y(the_geom) as ymax
+	FROM
+		gbif
+	WHERE
+		species LIKE '{genus} %' AND
+		gbifid = '{uid}'
+
 )
 
 SELECT
@@ -39,4 +58,4 @@ SELECT
 	'gbif' as layer
 FROM
 	data d LEFT JOIN gadm2 g ON 
-			(d.point_geom, g.the_geom)
+			st_intersects(d.point_geom, g.the_geom)
