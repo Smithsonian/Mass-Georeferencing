@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #
-# Mass Georeferencing script
+# Batch Georeferencing script
 # Version 0.1
 #
-# 2020-07-10
+# 2020-07-13
 # 
 # Digitization Program Office, 
 # Office of the Chief Information Officer,
@@ -11,12 +11,13 @@
 # https://dpo.si.edu
 #
 #Import modules
-import os, logging, sys, locale, uuid, glob, tqdm
-import unicodedata, subprocess, pycountry, swifter
+import os, logging, sys, locale, uuid, glob, tqdm, time
+import unicodedata, subprocess, pycountry, swifter, datetime
 import pandas as pd
 import numpy as np
 from time import localtime, strftime
-from fuzzywuzzy import fuzz
+#from fuzzywuzzy import fuzz
+from rapidfuzz import fuzz
 from pyfiglet import Figlet
 import psycopg2, psycopg2.extras
 from psycopg2.extras import execute_batch
@@ -29,9 +30,11 @@ from tqdm import tqdm
 import settings
 
 
+start = time.time()
+
 
 #Script variables
-script_title = "Mass Georeferencing"
+script_title = "Batch Georeferencing for Mass Georeferencing"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
 ver = "0.1"
 repo = "https://github.com/Smithsonian/Mass-Georeferencing"
@@ -77,7 +80,7 @@ console.setLevel(logging.INFO)
 formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
 console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
-logger1 = logging.getLogger("mass_georef")
+logger1 = logging.getLogger("batch_georef")
 
 
 
@@ -102,7 +105,6 @@ if collex == None:
     sys.exit(1)
 
 #Select species
-#cur.execute(collex['collex_definition'])
 cur.execute(queries.get_collex_species, (settings.collex_id,))
 logger1.debug(cur.query)
 scinames = cur.fetchall()
@@ -128,7 +130,6 @@ stop = stopwords.words('english')
 for sciname in scinames:
     logger1.info("sciname: {}".format(sciname['species']))
     #Get countrycodes for the species
-    # country can be comma-separated array
     cur.execute(queries.get_spp_countries, (sciname['species'], settings.collex_id))
     logger1.debug(cur.query)
     countries = cur.fetchall()
@@ -181,15 +182,18 @@ for sciname in scinames:
                     ##################
                     #locality.partial_ratio
                     candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                    candidates['score1_type'] = "locality.partial_ratio"
+                    #candidates['score1_type'] = "locality.partial_ratio"
+                    candidates['score1_type'] = "locality"
                     #stateprovince
                     candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
                     candidates['score2_type'] = "stateprovince"
                     #locality.token_set_ratio
                     candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                    candidates['score3_type'] = "locality.token_set_ratio"
+                    #candidates['score3_type'] = "locality.token_set_ratio"
+                    candidates['score3_type'] = "locality"
                     #Remove candidates with average score less than settings.min_score
-                    candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
+                    candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score3']), axis = 1)
+                    candidates = candidates[(candidates.score_locality + candidates.score2) > (settings.min_score * 2)]
                     if len(candidates) == 0:
                             continue
                     #candidates['recgroup_id'] = record['recgroup_id']
@@ -198,9 +202,10 @@ for sciname in scinames:
                     #candidates.insert(len(candidates.columns), 'data_source', 'gbif.species')
                     #Insert candidates and each score
                     insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
+                    #insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
                     insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
+                    #insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
+                    insert_scores(candidates[['candidate_id', 'score1_type', 'score_locality']].copy(), cur, logger1)
                     del candidates
         #GBIF - Genus
         if 'gbif.genus' in settings.layers:
@@ -991,6 +996,10 @@ for file in glob.glob('*.log'):
     subprocess.run(["zip", "{}.zip".format(file), file])
     os.remove(file)
 os.chdir(script_dir)
+
+
+end = time.time()
+logger1.info("Batch process took {}".format(str(datetime.timedelta(seconds = (end - start)))))
 
 
 sys.exit(0)
