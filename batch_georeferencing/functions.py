@@ -1,7 +1,15 @@
 #Functions for mass_georef
 # 2020-02-27
 
-import psycopg2, psycopg2.extras, re
+import psycopg2, psycopg2.extras, swifter, uuid, unicodedata
+import pandas as pd
+import numpy as np
+
+#import re
+from rapidfuzz import fuzz
+
+import settings
+
 
 def check_spatial(data_source, species, candidate_id, feature_id, cur, log):
     """
@@ -13,7 +21,7 @@ def check_spatial(data_source, species, candidate_id, feature_id, cur, log):
     else:
         #Use a try in case there is a problem with the geom
         try:
-            cur.execute(re.sub(' +', ' ', """
+            cur.execute("""
                 WITH data AS (
                         SELECT 
                             ST_Union(the_geom) as the_geom
@@ -69,7 +77,7 @@ def check_spatial(data_source, species, candidate_id, feature_id, cur, log):
                             END AS score 
                     FROM 
                         calc
-                )""".replace('\n', '')).format(candidate_id = candidate_id, data_source = data_source, species = species, feature_id = feature_id))
+                )""".replace('\n', '').format(candidate_id = candidate_id, data_source = data_source, species = species, feature_id = feature_id))
             log.debug(cur.query)
         except Exception as e:
             log.error(cur.query)
@@ -227,7 +235,7 @@ def insert_candidates(candidates, cur, log):
                 (candidate_id, recgroup_id, data_source, feature_id, no_features) 
             VALUES 
                 (%s, %s, %s, %s, %s)"""
-    query = re.sub(' +', ' ', query.replace('\n', ''))
+    query = query.replace('\n', '')
     psycopg2.extras.execute_batch(cur, query, candidates_vals)
     log.debug(cur.query)
     return
@@ -239,8 +247,79 @@ def insert_scores(candidates, cur, log):
                                 (candidate_id, score_type, score) 
                             VALUES 
                                 (%s, %s, %s)"""
-    query = re.sub(' +', ' ', query.replace('\n', ''))
+    query = query.replace('\n', '')
     psycopg2.extras.execute_batch(cur, query, candidates_vals)
     log.debug(cur.query)
     return
 
+
+def process_cands(candidates, record, cur, log, gbif = False, state = True):
+    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
+    candidates['candidate_id'] = candidates['candidate_id'].astype('str')
+    #Remove diacritic characters
+    candidates['name'].replace(np.nan, "", inplace=True)
+    candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
+    candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
+    candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
+    ##################
+    #Execute matches
+    ##################
+    #locality.partial_ratio
+    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
+    #locality.token_set_ratio
+    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
+    candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score2']), axis = 1)
+    candidates['score_locality_type'] = "locality"
+    #stateprovince
+    if state == True:
+        candidates['score_state'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
+        candidates['score_state_type'] = "stateprovince"
+    #Drop candidates with too low locality score
+    candidates = candidates[candidates.score_locality > 70]
+    candidates.insert(len(candidates.columns), 'recgroup_id', record['recgroup_id'])
+    if gbif == False:
+        candidates = candidates.assign(no_features = 1)
+    #Insert candidates and each score
+    insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, log)
+    #locality
+    insert_scores(candidates[['candidate_id', 'score_locality_type', 'score_locality']].copy(), cur, log)
+    if state == True:
+        #stateprovince
+        insert_scores(candidates[['candidate_id', 'score_state_type', 'score_state']].copy(), cur, log)
+    return candidates
+
+
+
+def delete_lowscore(cur, log):
+    query = """WITH scores AS (
+                    SELECT 
+                        c.candidate_id, 
+                        ROUND(AVG(s.score),1) AS score
+                    FROM 
+                        mg_candidates c LEFT JOIN 
+                        mg_candidates_scores s ON (c.candidate_id = s.candidate_id)
+                    WHERE 
+                        c.recgroup_id IN (
+                            SELECT 
+                                recgroup_id 
+                            FROM 
+                                mg_recordgroups 
+                            WHERE 
+                                collex_id = '{collex_id}'::uuid
+                            )
+                    GROUP BY 
+                        c.candidate_id,
+                        c.data_source,
+                        c.feature_id
+                    )
+                DELETE FROM ONLY mg_candidates c
+                    USING 
+                        scores s
+                    WHERE 
+                        c.candidate_id = s.candidate_id AND
+                        s.score IS NOT NULL AND
+                        s.score < {threshold}"""
+    query = query.replace('\n', '')
+    cur.execute(query.format(collex_id = settings.collex_id, threshold = settings.min_score))
+    log.debug(cur.query)
+    return

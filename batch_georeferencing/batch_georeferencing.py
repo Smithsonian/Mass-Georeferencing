@@ -11,10 +11,11 @@
 # https://dpo.si.edu
 #
 #Import modules
-import os, logging, sys, locale, uuid, glob, tqdm, time
-import unicodedata, subprocess, pycountry, swifter, datetime
+import os, logging, sys, locale, uuid, glob, time
+import subprocess, pycountry, swifter, datetime
+#import unicodedata
 import pandas as pd
-import numpy as np
+#import numpy as np
 from time import localtime, strftime
 #from fuzzywuzzy import fuzz
 from rapidfuzz import fuzz
@@ -34,7 +35,7 @@ start = time.time()
 
 
 #Script variables
-script_title = "Batch Georeferencing for Mass Georeferencing"
+script_title = "Batch Georeferencing"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
 ver = "0.1"
 repo = "https://github.com/Smithsonian/Mass-Georeferencing"
@@ -169,44 +170,7 @@ for sciname in scinames:
             if len(allcandidates) > 0:
                 #Iterate each record
                 for index, record in records_g.iterrows():
-                    candidates = allcandidates.copy()
-                    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                    candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                    #Remove diacritic characters
-                    candidates['name'].replace(np.nan, "", inplace=True)
-                    candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                    candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    ##################
-                    #Execute matches
-                    ##################
-                    #locality.partial_ratio
-                    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                    #candidates['score1_type'] = "locality.partial_ratio"
-                    candidates['score1_type'] = "locality"
-                    #stateprovince
-                    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                    candidates['score2_type'] = "stateprovince"
-                    #locality.token_set_ratio
-                    candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                    #candidates['score3_type'] = "locality.token_set_ratio"
-                    candidates['score3_type'] = "locality"
-                    #Remove candidates with average score less than settings.min_score
-                    candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score3']), axis = 1)
-                    candidates = candidates[(candidates.score_locality + candidates.score2) > (settings.min_score * 2)]
-                    if len(candidates) == 0:
-                            continue
-                    #candidates['recgroup_id'] = record['recgroup_id']
-                    candidates.insert(len(candidates.columns), 'recgroup_id', record['recgroup_id'])
-                    #candidates['data_source'] = 'gbif.species'
-                    #candidates.insert(len(candidates.columns), 'data_source', 'gbif.species')
-                    #Insert candidates and each score
-                    insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                    #insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                    #insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score1_type', 'score_locality']].copy(), cur, logger1)
-                    del candidates
+                    candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1, gbif = True)
         #GBIF - Genus
         if 'gbif.genus' in settings.layers:
             if country['countrycode'] == "":
@@ -219,234 +183,102 @@ for sciname in scinames:
             if len(allcandidates) > 0:
                 #Iterate each record
                 for index, record in records_g.iterrows():
-                    candidates = allcandidates.copy()
-                    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                    candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                    #Remove diacritic characters
-                    candidates['name'].replace(np.nan, "", inplace=True)
-                    candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                    candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    ##################
-                    #Execute matches
-                    ##################
-                    #locality.partial_ratio
-                    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                    candidates['score1_type'] = "locality.partial_ratio"
-                    #stateprovince
-                    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                    candidates['score2_type'] = "stateprovince"
-                    #locality.token_set_ratio
-                    candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                    candidates['score3_type'] = "locality.token_set_ratio"
-                    #Remove candidates with average score less than settings.min_score
-                    candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                    if len(candidates) == 0:
-                            continue
-                    #candidates['data_source'] = 'gbif.genus'
-                    candidates.insert(len(candidates.columns), 'recgroup_id', record['recgroup_id'])
-                    #candidates.insert(len(candidates.columns), 'data_source', 'gbif.genus')
-                    #Insert candidates and each score
-                    insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                    del candidates
+                    candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1, gbif = True)
         #WDPA
         if 'wdpa' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
                     if state == "":
-                        cur.execute(queries.wdpa_iso.replace('\n', ' ').format(iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_wdpa_iso.replace('\n', ' ').format(iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, collex_id = settings.collex_id))
+                        else:
+                            cur.execute(queries.wdpa_iso.replace('\n', ' ').format(iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
                     else:
-                        #cur.execute(queries.gnis_query_state, (state, ))
-                        cur.execute(queries.wdpa_iso_state.replace('\n', ' ').format(stateprovince = state, iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_wdpa_iso_state.replace('\n', ' ').format(stateprovince = state, iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, collex_id = settings.collex_id))
+                        else:
+                            cur.execute(queries.wdpa_iso_state.replace('\n', ' ').format(stateprovince = state, iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of WDPA candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                     if len(allcandidates) > 0:
                         #Iterate each record
                         for index, record in records_g[records_g.stateprovince == state].iterrows():
-                            candidates = allcandidates.copy()
-                            candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                            candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                            #Remove diacritic characters
-                            candidates['name'].replace(np.nan, "", inplace=True)
-                            candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                            candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            ##################
-                            #Execute matches
-                            ##################
-                            #locality.partial_ratio
-                            candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                            candidates['score1_type'] = "locality.partial_ratio"
-                            #stateprovince
-                            candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                            candidates['score2_type'] = "stateprovince"
-                            #locality.token_set_ratio
-                            candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                            candidates['score3_type'] = "locality.token_set_ratio"
-                            #Remove candidates with average score less than settings.min_score
-                            candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                            if len(candidates) == 0:
-                                continue
-                            #candidates['recgroup_id'] = record['recgroup_id']
-                            candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                            #candidates['no_features'] = 1
-                            candidates = candidates.assign(no_features = 1)
-                            #Insert candidates and each score
-                            insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                            del candidates
+                            candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #GADM
         if 'gadm' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
                     if state == "":
-                        cur.execute(queries.gadm_country.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_gadm_country.replace('\n', ' ').format(collex_id = settings.collex_id), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3})
+                        else:
+                            cur.execute(queries.gadm_country.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3})
                     else:
-                        cur.execute(queries.gadm_country_state.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state)})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_gadm_country_state.replace('\n', ' ').format(collex_id = settings.collex_id), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state)})
+                        else:
+                            cur.execute(queries.gadm_country_state.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state)})
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of GADM candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                     if len(allcandidates) > 0:
                         #Iterate each record
                         for index, record in records_g[records_g.stateprovince == state].iterrows():
-                            candidates = allcandidates.copy()
-                            candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                            candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                            #Remove diacritic characters
-                            candidates['name'].replace(np.nan, "", inplace=True)
-                            candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                            candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            ##################
-                            #Execute matches
-                            ##################
-                            #locality.partial_ratio
-                            candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                            candidates['score1_type'] = "locality.partial_ratio"
-                            #stateprovince
-                            candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                            candidates['score2_type'] = "stateprovince"
-                            #locality.token_set_ratio
-                            candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                            candidates['score3_type'] = "locality.token_set_ratio"
-                            #Remove candidates with average score less than settings.min_score
-                            candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                            if len(candidates) == 0:
-                                continue
-                            #candidates['recgroup_id'] = record['recgroup_id']
-                            candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                            #candidates['no_features'] = 1
-                            candidates = candidates.assign(no_features = 1)
-                            #Insert candidates and each score
-                            insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                            del candidates
+                            candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #GNIS
         if 'gnis' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.gnis_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_gnis_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.gnis_query)
                 else:
-                    cur.execute(queries.gnis_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_gnis_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.gnis_query_state, {'state': "%{}%, United States".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of GNIS candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id'].astype('str')
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Insert candidates and each score
-                        insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Historical_Counties
         if 'hist_counties' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.hist_counties_query_nodate)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_hist_counties_query_nodate.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.hist_counties_query_nodate)
                 else:
-                    cur.execute(queries.hist_counties_query_nodate_state, {'state': "%{}%".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_hist_counties_query_nodate_state.format(collex_id = settings.collex_id), {'state': "%{}%".format(state)})
+                    else:
+                        cur.execute(queries.hist_counties_query_nodate_state, {'state': "%{}%".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Hist_Counties candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #locality.token_set_ratio
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score2_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2) > (settings.min_score * 2)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Insert candidates and each score
-                        insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1, state = False)
         #Tiger (US Census)
         if 'tiger' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.tiger_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_tiger_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.tiger_query)
                 else:
-                    cur.execute(queries.tiger_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_tiger_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.tiger_query_state, {'state': "%{}%, United States".format(state)})
                 #cur.execute(queries.tiger_query)
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
@@ -454,395 +286,186 @@ for sciname in scinames:
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Insert candidates and each score
-                        insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Topos (US)
         if 'topos' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.topos_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_topos_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.topos_query)
                 else:
-                    cur.execute(queries.topos_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_topos_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.topos_query_state, {'state': "%{}%, United States".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Topos candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Total score
-                        candidates['score_total'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : row['score1'] + row['score2'] + row['score3'], axis = 1)
-                        #Due to repetitions across multiple topos, filter this layer to the top 20 
-                        candidates_subset = candidates.copy().nlargest(20, 'score_total')
-                        #Insert candidates and each score
-                        insert_candidates(candidates_subset[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Rivers (US)
         if 'usa_rivers' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.usa_rivers_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_usa_rivers_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.usa_rivers_query)
                 else:
-                    cur.execute(queries.usa_rivers_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_usa_rivers_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.usa_rivers_query_state, {'state': "%{}%, United States".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of river candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Total score
-                        candidates['score_total'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : row['score1'] + row['score2'] + row['score3'], axis = 1)
-                        #Due to repetitions across multiple topos, filter this layer to the top 20 
-                        candidates_subset = candidates.copy().nlargest(20, 'score_total')
-                        #Insert candidates and each score
-                        insert_candidates(candidates_subset[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Historical places (US)
         if 'usa_histplaces' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.usa_histplaces_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_usa_histplaces_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.usa_histplaces_query)
                 else:
-                    cur.execute(queries.usa_histplaces_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_usa_histplaces_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.usa_histplaces_query_state, {'state': "%{}%, United States".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of historical places candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Total score
-                        candidates['score_total'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : row['score1'] + row['score2'] + row['score3'], axis = 1)
-                        #Due to repetitions across multiple topos, filter this layer to the top 20 
-                        candidates_subset = candidates.copy().nlargest(20, 'score_total')
-                        #Insert candidates and each score
-                        insert_candidates(candidates_subset[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #USGS National Structures (US)
         if 'usgs_nat_struct' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.usgs_nat_struct_query)
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.usgs_nat_struct_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.usgs_nat_struct_query)
                 else:
-                    cur.execute(queries.usgs_nat_struct_query_state, {'state': "%{}%, United States".format(state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.usgs_nat_struct_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.usgs_nat_struct_query_state, {'state': "%{}%, United States".format(state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of USGS National Structures candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Total score
-                        candidates['score_total'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : row['score1'] + row['score2'] + row['score3'], axis = 1)
-                        #Due to repetitions across multiple topos, filter this layer to the top 20 
-                        candidates_subset = candidates.copy().nlargest(20, 'score_total')
-                        #Insert candidates and each score
-                        insert_candidates(candidates_subset[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates_subset[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
+        #usgs_nhd_waterbody
+        if 'usgs_nhd_waterbody' in settings.layers and country['countrycode'] == 'US':
+            for state in records_g['stateprovince'].unique():
+                if state == "":
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.usgs_nhd_waterbody_query.format(collex_id = settings.collex_id))
+                    else:
+                        cur.execute(queries.usgs_nhd_waterbody_query)
+                else:
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.usgs_nhd_waterbody_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                    else:
+                        cur.execute(queries.usgs_nhd_waterbody_query_state, {'state': "%{}%, United States".format(state)})
+                logger1.debug(cur.query)
+                allcandidates = pd.DataFrame(cur.fetchall())
+                logger1.info("No. of USGS National Hydrography candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
+                if len(allcandidates) > 0:
+                    #Iterate each record
+                    for index, record in records_g[records_g.stateprovince == state].iterrows():
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #GNS - Not US
         if 'gns' in settings.layers and country['countrycode'] != 'US':
             if country['countrycode'] == "":
-                cur.execute(queries.gns_query.replace('\n', ' '))
+                if settings.collex_polygon == True:
+                    cur.execute(queries.collexpoly_gns_query.format(collex_id = settings.collex_id).replace('\n', ' '))
+                else:
+                    cur.execute(queries.gns_query.replace('\n', ' '))
             else:
                 for state in records_g['stateprovince'].unique():
                     if state == "":
-                        cur.execute(queries.gns_query_country.replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_gns_query_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name})
+                        else:
+                            cur.execute(queries.gns_query_country.replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name})
                     else:
-                        cur.execute(queries.gns_query_country_state.replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_gns_query_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
+                        else:
+                            cur.execute(queries.gns_query_country_state.replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
             logger1.debug(cur.query)
             allcandidates = pd.DataFrame(cur.fetchall())
             logger1.info("No. of GNS candidates ({}): {}".format(country['countrycode'], len(allcandidates)))
             if len(allcandidates) > 0:
                 #Iterate each record
                 for index, record in records_g.iterrows():
-                    candidates = allcandidates.copy()
-                    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                    candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                    #Remove diacritic characters
-                    candidates['name'].replace(np.nan, "", inplace=True)
-                    candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                    candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    ##################
-                    #Execute matches
-                    ##################
-                    #locality.partial_ratio
-                    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                    candidates['score1_type'] = "locality.partial_ratio"
-                    #stateprovince
-                    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                    candidates['score2_type'] = "stateprovince"
-                    #locality.token_set_ratio
-                    candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                    candidates['score3_type'] = "locality.token_set_ratio"
-                    #Remove candidates with average score less than settings.min_score
-                    candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                    if len(candidates) == 0:
-                        continue
-                    #candidates['recgroup_id'] = record['recgroup_id']
-                    candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                    #candidates['no_features'] = 1
-                    candidates = candidates.assign(no_features = 1)
-                    #Insert candidates and each score
-                    insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                    del candidates
+                    candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Lakes
         if 'global_lakes' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
-                cur.execute(queries.global_lakes.replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''")})
+                if settings.collex_polygon == True:
+                    cur.execute(queries.collexpoly_global_lakes.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''")})
+                else:
+                    cur.execute(queries.global_lakes.replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''")})
             else:
-                cur.execute(queries.global_lakes_null)
+                if settings.collex_polygon == True:
+                    cur.execute(queries.collexpoly_global_lakes_null.format(collex_id = settings.collex_id))
+                else:
+                    cur.execute(queries.global_lakes_null)
             logger1.debug(cur.query)
             allcandidates = pd.DataFrame(cur.fetchall())
             logger1.info("No. of GlobalLakes candidates ({}): {}".format(country['countrycode'], len(allcandidates)))
             if len(allcandidates) > 0:
                 #Iterate each record
                 for index, record in records_g.iterrows():
-                    candidates = allcandidates.copy()
-                    candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                    candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                    #Remove diacritic characters
-                    candidates['name'].replace(np.nan, "", inplace=True)
-                    candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                    candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                    ##################
-                    #Execute matches
-                    ##################
-                    #locality.partial_ratio
-                    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                    candidates['score1_type'] = "locality.partial_ratio"
-                    #stateprovince
-                    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                    candidates['score2_type'] = "stateprovince"
-                    #locality.token_set_ratio
-                    candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                    candidates['score3_type'] = "locality.token_set_ratio"
-                    #Remove candidates with average score less than settings.min_score
-                    candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                    if len(candidates) == 0:
-                        continue
-                    #candidates['recgroup_id'] = record['recgroup_id']
-                    candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                    #candidates['no_features'] = 1
-                    candidates = candidates.assign(no_features = 1)
-                    #Insert candidates and each score
-                    insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                    insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                    del candidates
+                    candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Geonames
         if 'geonames' in settings.layers and country['countrycode'] != "":
             for state in records_g['stateprovince'].unique():
                 if state == "":
-                    cur.execute(queries.geonames.replace('\n', ' '), {'countrycode': country['countrycode']})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_geonames.format(collex_id = settings.collex_id).replace('\n', ' '), {'countrycode': country['countrycode']})
+                    else:
+                        cur.execute(queries.geonames.replace('\n', ' '), {'countrycode': country['countrycode']})
                 else:
-                    cur.execute(queries.geonames_state.replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state)})
+                    if settings.collex_polygon == True:
+                        cur.execute(queries.collexpoly_geonames_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state)})
+                    else:
+                        cur.execute(queries.geonames_state.replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state)})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Geonames candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                 if len(allcandidates) > 0:
                     #Iterate each record
                     for index, record in records_g[records_g.stateprovince == state].iterrows():
-                        candidates = allcandidates.copy()
-                        candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                        candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                        #Remove diacritic characters
-                        candidates['name'].replace(np.nan, "", inplace=True)
-                        candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                        candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                        ##################
-                        #Execute matches
-                        ##################
-                        #locality.partial_ratio
-                        candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                        candidates['score1_type'] = "locality.partial_ratio"
-                        #stateprovince
-                        candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                        candidates['score2_type'] = "stateprovince"
-                        #locality.token_set_ratio
-                        candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                        candidates['score3_type'] = "locality.token_set_ratio"
-                        #Remove candidates with average score less than settings.min_score
-                        candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                        if len(candidates) == 0:
-                            continue
-                        #candidates['recgroup_id'] = record['recgroup_id']
-                        candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                        #candidates['no_features'] = 1
-                        candidates = candidates.assign(no_features = 1)
-                        #Insert candidates and each score
-                        insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                        insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                        del candidates
+                        candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #wikidata
         if 'wikidata' in settings.layers and country['countrycode'] != "":
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
                     if state == "":
-                        cur.execute(queries.wikidata_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_wikidata_by_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        else:
+                            cur.execute(queries.wikidata_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     else:
-                        cur.execute(queries.wikidata_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_wikidata_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        else:
+                            cur.execute(queries.wikidata_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     #Too many candidates if there is no country
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
@@ -850,88 +473,28 @@ for sciname in scinames:
                     if len(allcandidates) > 0:
                         #Iterate each record
                         for index, record in records_g[records_g.stateprovince == state].iterrows():
-                            candidates = allcandidates.copy()
-                            candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                            candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                            #Remove diacritic characters
-                            candidates['name'].replace(np.nan, "", inplace=True)
-                            candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                            candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            ##################
-                            #Execute matches
-                            ##################
-                            #locality.partial_ratio
-                            candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                            candidates['score1_type'] = "locality.partial_ratio"
-                            #stateprovince
-                            candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                            candidates['score2_type'] = "stateprovince"
-                            #locality.token_set_ratio
-                            candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                            candidates['score3_type'] = "locality.token_set_ratio"
-                            #Remove candidates with average score less than settings.min_score
-                            candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                            if len(candidates) == 0:
-                                continue
-                            #candidates['recgroup_id'] = record['recgroup_id']
-                            candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                            #candidates['no_features'] = 1
-                            candidates = candidates.assign(no_features = 1)
-                            #Insert candidates and each score
-                            insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                            del candidates
+                            candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #osm
         if 'osm' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
                     if state == "":
-                        cur.execute(queries.osm_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_osm_by_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        else:
+                            cur.execute(queries.osm_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     else:
-                        cur.execute(queries.osm_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        if settings.collex_polygon == True:
+                            cur.execute(queries.collexpoly_osm_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                        else:
+                            cur.execute(queries.osm_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of OSM candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
                     if len(allcandidates) > 0:
                         #Iterate each record
                         for index, record in records_g[records_g.stateprovince == state].iterrows():
-                            candidates = allcandidates.copy()
-                            candidates['candidate_id'] = [uuid.uuid4() for _ in range(len(candidates.index))]
-                            candidates['candidate_id'] = candidates['candidate_id'].astype('str')
-                            #Remove diacritic characters
-                            candidates['name'].replace(np.nan, "", inplace=True)
-                            candidates['stateprovince'].replace(np.nan, "", inplace=True)                        
-                            candidates['name_ascii'] = candidates['name'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            candidates['stateprovince_ascii'] = candidates['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-                            ##################
-                            #Execute matches
-                            ##################
-                            #locality.partial_ratio
-                            candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
-                            candidates['score1_type'] = "locality.partial_ratio"
-                            #stateprovince
-                            candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
-                            candidates['score2_type'] = "stateprovince"
-                            #locality.token_set_ratio
-                            candidates['score3'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-                            candidates['score3_type'] = "locality.token_set_ratio"
-                            #Remove candidates with average score less than settings.min_score
-                            candidates = candidates[(candidates.score1 + candidates.score2 + candidates.score3) > (settings.min_score * 3)]
-                            if len(candidates) == 0:
-                                continue
-                            #candidates['recgroup_id'] = record['recgroup_id']
-                            candidates = candidates.assign(recgroup_id = record['recgroup_id'])
-                            #candidates['no_features'] = 1
-                            candidates = candidates.assign(no_features = 1)
-                            #Insert candidates and each score
-                            insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, logger1)
-                            insert_scores(candidates[['candidate_id', 'score3_type', 'score3']].copy(), cur, logger1)
-                            del candidates
+                            candidates = process_cands(candidates = allcandidates.copy(), record = record, cur = cur, log = logger1)
         #Calculate elevation, if available
         # if 'elevation' in settings.layers and country['countrycode'] == 'US':
         #     #Iterate each record
@@ -947,44 +510,43 @@ for sciname in scinames:
         #                 for index1, cand_record in allcandidates.iterrows():
         #                     check_elev(cand_record['data_source'], sciname['species'], record['elevation'], cand_record['candidate_id'], cand_record['feature_id'], cur, logger1)
     #Spatial Match
-    if settings.spatial_match == True and settings.backend == "database":
+    if settings.spatial_match == True:
         cur.execute(queries.get_species_candidates, {'species': sciname['species'], 'collex_id': settings.collex_id})
         logger1.debug(cur.query)
         allcandidates = pd.DataFrame(cur.fetchall())
         if len(allcandidates) > 0:
             logger1.info("Matching spatial location for {} candidates of {}".format(len(allcandidates), sciname['species']))
-            #allcandidates.progress_apply(check_spatial, (allcandidates['data_source'], sciname['species'], allcandidates['candidate_id'], allcandidates['feature_id'], cur, logger1))
+            #for index, record in allcandidates.iterrows():
+            #    #check_spatial(record['data_source'], sciname['species'], record['candidate_id'], record['feature_id'], cur, logger1)
+            #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
+            #tqdm.pandas(tqdm(total = allcandidates.shape[0]))
+            #allcandidates.progress_apply(lambda row: check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
             allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
-            # for index, row in allcandidates.iterrows():
-            #     #Check each candidate
-            #     #print("Running row {}".format(index))
-            #     print(".")
-            #     check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1)
         del allcandidates
         #Limit the matches to a polygon for the collection
-        if settings.collex_polygon == True:
-            cur.execute(queries.get_species_candidates, {'species': sciname['species'], 'collex_id': settings.collex_id})
-            logger1.debug(cur.query)
-            allcandidates = pd.DataFrame(cur.fetchall())
-            if len(allcandidates) > 0:
-                logger1.info("Limiting candidates to collex polygon for {} records of {}".format(len(allcandidates), sciname['species']))
-                #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
-                #tqdm.pandas()
-                tqdm.pandas(tqdm(total = allcandidates.shape[0]))
-                allcandidates.progress_apply(lambda row: check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
-                # for index, row in allcandidates.iterrows():
-                #     print("Running row {}".format(index))
-                #     check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1)
-            del allcandidates
+        # if settings.collex_polygon == True:
+        #     cur.execute(queries.get_species_candidates, {'species': sciname['species'], 'collex_id': settings.collex_id})
+        #     logger1.debug(cur.query)
+        #     allcandidates = pd.DataFrame(cur.fetchall())
+        #     if len(allcandidates) > 0:
+        #         logger1.info("Limiting candidates to collex polygon for {} records of {}".format(len(allcandidates), sciname['species']))
+        #         #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
+        #         # for index, record in allcandidates.iterrows():
+        #         #     check_spatial_extent(record['data_source'], record['feature_id'], record['candidate_id'], settings.collex_id, sciname['species'], cur, logger1)
+        #         tqdm.pandas(tqdm(total = allcandidates.shape[0]))
+        #         allcandidates.progress_apply(lambda row: check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
+        #         #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
+        #     del allcandidates
     #Calculate candidates by recordgroup
     cur.execute(queries.recordgroups_stats, {'species': sciname['species'], 'collex_id': settings.collex_id})
     logger1.debug(cur.query)
+    logger1.info("Removing candidates with low scores...")
+    delete_lowscore(cur, logger1)
     #Remove recgroups without candidates
     logger1.info("Cleanup...")
     cur.execute("DELETE FROM mg_recordgroups WHERE collex_id = '{collex_id}' AND species = '{species}' AND no_candidates = 0".format(collex_id = settings.collex_id, species = sciname['species']))
     logger1.debug(cur.query)
-    
-    
+
 
 
 
