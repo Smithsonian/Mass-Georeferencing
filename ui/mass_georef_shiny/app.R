@@ -2,18 +2,13 @@ library(shiny)
 library(leaflet)
 library(leaflet.extras)
 library(jsonlite)
-#library(futile.logger)
 library(countrycode)
-#library(parallel)
 library(shinyWidgets)
-#library(rgdal)
 library(shinycssloaders)
 library(dplyr)
 library(sp)
 library(DT)
 library(rgbif)
-#library(DBI)
-#library(httr)
 library(shinyjs)
 library(rmarkdown)
 
@@ -93,9 +88,6 @@ ui <- fluidPage(
              #h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main"),
              uiOutput("title"),
              uiOutput("main"),
-             #Keep login from displaying form until doc has loaded, otherwise the cookie is null and will briefly
-             # ask for login info
-             #rmarkdown::render_delayed(uiOutput("userlogin")),
              uiOutput("userlogin"),
              uiOutput("maingroup"),
              uiOutput("species"),
@@ -177,7 +169,7 @@ server <- function(input, output, session) {
   #userlogin----
   output$userlogin <- renderUI({
     js$getcookie()
-    #if (is.null(input$jscookie) || input$jscookie == ""){
+    
     if (is.null(input$jscookie)){
       tagList(
         br(),br(),br(),br(),
@@ -195,8 +187,6 @@ server <- function(input, output, session) {
                             encode = "form"
       )
       cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-      
-      #user_id <- dbGetQuery(db, paste0("SELECT c.user_id, u.user_name FROM mg_users_cookies c, mg_users u WHERE c.user_id = u.user_id AND c.cookie = '", input$jscookie, "'"))
       
       if (length(cookie_check$user_id) != 1){
         js$rmcookie()
@@ -219,8 +209,8 @@ server <- function(input, output, session) {
   #observeEvent_login----
   observeEvent(input$login, {
     api_req <- httr::POST(URLencode(paste0(api_url, "mg/login")),
-                          body = list(user_name = 'villanueval',#input$username,
-                                      password = 'password'#input$password
+                          body = list(user_name = input$username,
+                                      password = input$password
                                       ),
                           httr::add_headers(
                             "X-Api-Key" = app_api_key
@@ -228,8 +218,6 @@ server <- function(input, output, session) {
                           encode = "form"
     )
     login <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-    
-    #is_user <- dbGetQuery(db, paste0("SELECT user_id FROM mg_users WHERE user_name = '", input$username, "' AND user_pass = MD5('", input$password, "')"))
     
     if (length(login$user_id) != 1){
       output$userlogin <- renderUI({
@@ -244,23 +232,14 @@ server <- function(input, output, session) {
                             encode = "form"
       )
       cookie_check <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
-      # print("242")
-      # print(input$jscookie)
-      # print(cookie_check)
       
-      #user_id <- dbGetQuery(db, paste0("SELECT c.user_id FROM mg_users_cookies c, mg_users u WHERE c.user_id = u.user_id AND c.cookie = '", input$jscookie, "'"))
       if (length(cookie_check$user_id) != 1){
         sessionid <- paste(
           collapse = '',
           sample(x = c(letters, LETTERS, 0:9), size = 64, replace = TRUE)
         )
         
-        #print("254")
         js$setcookie(sessionid)
-        
-        # print("257")
-        # print(login$user_id)
-        # print(sessionid)
         
         api_req <- httr::POST(URLencode(paste0(api_url, "mg/new_cookie")),
                               body = list(user_id = login$user_id,
@@ -272,11 +251,6 @@ server <- function(input, output, session) {
         )
         new_cookie <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
         
-        #n <- dbSendQuery(db, paste0("INSERT INTO mg_users_cookies (user_id, cookie) VALUES ('", is_user$user_id, "'::uuid, '", sessionid, "')"))
-        #dbClearResult(n)
-        #js$setcookie(sessionid)
-
-        #print(new_cookie)
         session$userData$user_id <- cookie_check$user_id
         session$userData$username <- cookie_check$user_name
       }else{
@@ -325,11 +299,6 @@ server <- function(input, output, session) {
     query <- parseQueryString(session$clientData$url_search)
     collex_id <- query['collex_id']
     
-    # if (collex_id == "NULL"){
-    #   h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main")
-    # }else{
-    #   h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href=paste0("./?collex_id=", collex_id))), id = "title_main")
-    # }
     h2(div(a(img(src="mass_geo_icon.png", height = "30px"), app_name, href="./")), id = "title_main")
   })
   
@@ -775,8 +744,6 @@ server <- function(input, output, session) {
       candidates$longitude <- as.numeric(candidates$longitude)
       candidates$latitude <- as.numeric(candidates$latitude)
       
-      #session$userData$candidates <- candidates
-      
       if (api_req$status != 200){
          results_table <- candidates
       }else{
@@ -851,66 +818,43 @@ server <- function(input, output, session) {
         )
       })
       
-      
-      # if (dim(results_table)[1]==1){
-      #    DT::datatable(results_table,
-      #                  escape = FALSE,
-      #                  options = list(searching = FALSE,
-      #                                 ordering = TRUE,
-      #                                 pageLength = 8,
-      #                                 paging = FALSE,
-      #                                 bLengthChange = FALSE#,
-      #                                 #scrollY = "440px"
-      #                  ),
-      #                  rownames = FALSE,
-      #                  selection = list(mode = 'single', selected = c(1)),
-      #                  caption = "Select a locality to show on the map") %>% 
-      #       formatStyle(c('Mean Score'),
-      #                   background = styleColorBar(range(50, 100), 'lightblue'),
-      #                   backgroundSize = '98% 88%',
-      #                   backgroundRepeat = 'no-repeat',
-      #                   backgroundPosition = 'center')
-      #  }else{
-         if (candidate_id == "NULL"){
-           DT::datatable(results_table,
-                         escape = FALSE,
-                         options = list(searching = FALSE,
-                                        ordering = TRUE,
-                                        pageLength = 8,
-                                        paging = TRUE,
-                                        bLengthChange = FALSE#,
-                                        #scrollY = "440px"
-                         ),
-                         rownames = FALSE,
-                         selection = list(mode = 'single'),
-                         caption = "Select a locality to show on the map") %>% 
-             formatStyle(c('Mean Score'),
-                         background = styleColorBar(range(50, 100), 'lightblue'),
-                         backgroundSize = '98% 88%',
-                         backgroundRepeat = 'no-repeat',
-                         backgroundPosition = 'center')
-         }else{
-           which_row <- which(results$candidate_id == candidate_id)
+       if (candidate_id == "NULL"){
+         DT::datatable(results_table,
+                       escape = FALSE,
+                       options = list(searching = FALSE,
+                                      ordering = TRUE,
+                                      pageLength = 8,
+                                      paging = TRUE,
+                                      bLengthChange = FALSE
+                       ),
+                       rownames = FALSE,
+                       selection = list(mode = 'single'),
+                       caption = "Select a locality to show on the map") %>% 
+           formatStyle(c('Mean Score'),
+                       background = styleColorBar(range(50, 100), 'lightblue'),
+                       backgroundSize = '98% 88%',
+                       backgroundRepeat = 'no-repeat',
+                       backgroundPosition = 'center')
+       }else{
+         which_row <- which(results$candidate_id == candidate_id)
 
-           DT::datatable(results_table,
-                         escape = FALSE,
-                         options = list(searching = FALSE,
-                                        ordering = TRUE,
-                                        pageLength = 8,
-                                        paging = TRUE,
-                                        bLengthChange = FALSE#,
-                                        #scrollY = "440px"
-                         ),
-                         rownames = FALSE,
-                         selection = list(mode = 'single', selected = c(which_row)),
-                         caption = "Select a locality to show on the map") %>% 
-                    formatStyle(c('Mean Score'),
-                         background = styleColorBar(range(50, 100), 'lightblue'),
-                         backgroundSize = '98% 88%',
-                         backgroundRepeat = 'no-repeat',
-                         backgroundPosition = 'center')
-         }
-       #}
+         DT::datatable(results_table,
+                       escape = FALSE,
+                       options = list(searching = FALSE,
+                                      ordering = TRUE,
+                                      pageLength = 8,
+                                      paging = TRUE,
+                                      bLengthChange = FALSE
+                       ),
+                       rownames = FALSE,
+                       selection = list(mode = 'single', selected = c(which_row)),
+                       caption = "Select a locality to show on the map") %>% 
+                  formatStyle(c('Mean Score'),
+                       background = styleColorBar(range(50, 100), 'lightblue'),
+                       backgroundSize = '98% 88%',
+                       backgroundRepeat = 'no-repeat',
+                       backgroundPosition = 'center')
+       }
      }
   }, server = FALSE)
 
@@ -1463,9 +1407,6 @@ server <- function(input, output, session) {
                         <dl class=\"dl-horizontal\">
                             <dt>Longitude</dt><dd>", click_lng, "</dd>
                             <dt>Latitude</dt><dd>", click_lat, "</dd></dl>")),
-              #sliderInput("uncert_slider", "Set the Uncertainty Value (in meters):",
-              #            min = 0, max = 10000,
-              #            value = uncertainty_m, step = 25, width = "100%"),
               br(),
               actionButton("delete1", "Remove Click on Map", class = "btn-warning", style='font-size:80%'),
               HTML("</div>
@@ -1549,9 +1490,6 @@ server <- function(input, output, session) {
     }else{
       u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
     }
-    
-    #uncert_utm <- the_feature$utm_min_bound_radius_m
-    #print(uncert_utm)
     
     tagList(
       u,

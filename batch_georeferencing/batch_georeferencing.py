@@ -516,26 +516,17 @@ for sciname in scinames:
         allcandidates = pd.DataFrame(cur.fetchall())
         if len(allcandidates) > 0:
             logger1.info("Matching spatial location for {} candidates of {}".format(len(allcandidates), sciname['species']))
-            #for index, record in allcandidates.iterrows():
-            #    #check_spatial(record['data_source'], sciname['species'], record['candidate_id'], record['feature_id'], cur, logger1)
-            #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
-            #tqdm.pandas(tqdm(total = allcandidates.shape[0]))
-            #allcandidates.progress_apply(lambda row: check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
             allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
         del allcandidates
-        #Limit the matches to a polygon for the collection
+        # Limit the matches to a polygon for the collection
         # if settings.collex_polygon == True:
         #     cur.execute(queries.get_species_candidates, {'species': sciname['species'], 'collex_id': settings.collex_id})
         #     logger1.debug(cur.query)
         #     allcandidates = pd.DataFrame(cur.fetchall())
         #     if len(allcandidates) > 0:
         #         logger1.info("Limiting candidates to collex polygon for {} records of {}".format(len(allcandidates), sciname['species']))
-        #         #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
-        #         # for index, record in allcandidates.iterrows():
-        #         #     check_spatial_extent(record['data_source'], record['feature_id'], record['candidate_id'], settings.collex_id, sciname['species'], cur, logger1)
         #         tqdm.pandas(tqdm(total = allcandidates.shape[0]))
         #         allcandidates.progress_apply(lambda row: check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
-        #         #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial_extent(row['data_source'], row['feature_id'], row['candidate_id'], settings.collex_id, sciname['species'], cur, logger1), axis = 1)
         #     del allcandidates
     #Calculate candidates by recordgroup
     cur.execute(queries.recordgroups_stats, {'species': sciname['species'], 'collex_id': settings.collex_id})
