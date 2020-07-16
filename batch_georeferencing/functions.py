@@ -4,6 +4,8 @@
 import psycopg2, psycopg2.extras, swifter, uuid, unicodedata
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+
 
 #import re
 from rapidfuzz import fuzz
@@ -11,7 +13,7 @@ from rapidfuzz import fuzz
 import settings
 
 
-def check_spatial(data_source, species, candidate_id, feature_id, cur, log):
+def check_spatial(data_source, candidate_id, species, feature_id, cur, log):
     """
     Get the distance from the species' range
     To convert to API call
@@ -265,14 +267,24 @@ def process_cands(candidates, record, cur, log, gbif = False, state = True):
     #Execute matches
     ##################
     #locality.partial_ratio
-    candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
+    #candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
+    tqdm.pandas(desc="score1")
+    candidates['score1'] = candidates.progress_apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
     #locality.token_set_ratio
-    candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
-    candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score2']), axis = 1)
+    #candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
+    tqdm.pandas(desc="score2")
+    candidates['score2'] = candidates.progress_apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
+    #candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score2']), axis = 1)
+    tqdm.pandas(desc="score_locality")
+    #allcandidates.progress_apply
+    candidates['score_locality'] = candidates.progress_apply(lambda row : max(row['score1'], row['score2']), axis = 1)
     candidates['score_locality_type'] = "locality"
     #stateprovince
     if state == True:
-        candidates['score_state'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
+        #candidates['score_state'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
+        tqdm.pandas(desc="score_state")
+        #allcandidates.progress_apply
+        candidates['score_state'] = candidates.progress_apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
         candidates['score_state_type'] = "stateprovince"
     #Drop candidates with too low locality score
     candidates = candidates[candidates.score_locality > 70]
@@ -290,7 +302,7 @@ def process_cands(candidates, record, cur, log, gbif = False, state = True):
 
 
 
-def delete_lowscore(cur, log):
+def delete_lowscore(species, cur, log):
     query = """WITH scores AS (
                     SELECT 
                         c.candidate_id, 
@@ -305,7 +317,8 @@ def delete_lowscore(cur, log):
                             FROM 
                                 mg_recordgroups 
                             WHERE 
-                                collex_id = '{collex_id}'::uuid
+                                collex_id = '{collex_id}'::uuid AND
+                                species = '{species}'
                             )
                     GROUP BY 
                         c.candidate_id,
@@ -320,6 +333,6 @@ def delete_lowscore(cur, log):
                         s.score IS NOT NULL AND
                         s.score < {threshold}"""
     query = query.replace('\n', '')
-    cur.execute(query.format(collex_id = settings.collex_id, threshold = settings.min_score))
+    cur.execute(query.format(species = species, collex_id = settings.collex_id, threshold = settings.min_score))
     log.debug(cur.query)
     return

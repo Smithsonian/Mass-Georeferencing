@@ -662,6 +662,36 @@ def get_collex():
 
 
 
+@app.route('/mg/collex_dl', methods = ['POST'])
+def get_collex_dl():
+    """Get all collex available for MG."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    collex_id = request.form.get('collex_id')
+    if collex_id == None:
+        raise InvalidUsage('Missing collex_id', status_code = 400)
+    try:
+        collex_id = UUID(collex_id, version=4)
+    except: 
+        raise InvalidUsage('Invalid collex key, it must be a valid UUID.', status_code = 400)
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Build query
+    cur.execute("SELECT * FROM mg_collex_dl WHERE collex_id = '{collex_id}'::UUID".format(collex_id = collex_id))
+    logging.debug(cur.query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+
 @app.route('/mg/collex_info', methods = ['POST'])
 def get_collexinfo():
     """Get all collex available for MG."""

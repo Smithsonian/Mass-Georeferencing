@@ -451,3 +451,23 @@ CREATE TRIGGER trigger_updated_at_mg_polygons
   BEFORE UPDATE ON mg_polygons
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
+
+
+
+
+
+
+--collection downloads
+DROP TABLE IF EXISTS mg_collex_dl CASCADE;
+CREATE TABLE mg_collex_dl
+(
+    collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    dl_file_path text NOT NULL,
+    dl_recipe text NOT NULL,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_collex_dl_cid_idx ON mg_collex_dl USING BTREE(collex_id);
+CREATE TRIGGER trigger_updated_at_mg_collex_dl
+  BEFORE UPDATE ON mg_collex_dl
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();

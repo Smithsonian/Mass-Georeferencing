@@ -3,7 +3,6 @@ tqdm
 pycountry
 swifter
 pandas
-numpy
 pyfiglet
 psycopg2
 nltk

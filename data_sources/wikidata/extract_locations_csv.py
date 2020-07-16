@@ -53,7 +53,6 @@ def wikidata(filename):
     
 
 if __name__ == '__main__':
-    i = 0
     import argparse
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -97,9 +96,9 @@ if __name__ == '__main__':
     cur.execute("DELETE FROM wikidata_records")
     cur.execute("VACUUM wikidata_records")
     #Export data to CSV
-    wn = open("wikidata_names.csv", "a")
-    wd = open("wikidata_descrip.csv", "a")
-    wr = open("wikidata_records.csv", "a")
+    wn = open("wikidata_names.csv", "w")
+    wd = open("wikidata_descrip.csv", "w")
+    wr = open("wikidata_records.csv", "w")
     #Process wikidata dump
     for record in tqdm(wikidata(args.dumpfile)):
         # only extract items with geographical coordinates (P625)
@@ -113,14 +112,13 @@ if __name__ == '__main__':
                 #print('Skipping P376')
                 continue
             else:
-                #print('i = {} item {} started!\n'. format(i, record['id']))
                 latitude = pydash.get(record, 'claims.P625[0].mainsnak.datavalue.value.latitude')
                 longitude = pydash.get(record, 'claims.P625[0].mainsnak.datavalue.value.longitude')
                 #Ignore empty or invalid coords
                 if latitude == None or longitude == None:
                     #print('Skipping entry without coords')
                     continue
-                if abs(latitude) > 90 or abs(longitude) > 180:
+                if abs(latitude) >= 90 or abs(longitude) >= 180:
                     #print('Skipping entry with invalid coords')
                     continue
                 english_label = pydash.get(record, 'labels.en.value')
@@ -131,28 +129,12 @@ if __name__ == '__main__':
                 langs = pydash.get(record, 'labels')
                 for lang in langs:
                     wn.write("{},{},{}\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''")))
-                    # cur.execute("""
-                    #     INSERT INTO wikidata_names (source_id, language, name)
-                    #     VALUES (%s, %s, %s);
-                    #     """,
-                    #     (item_id, langs[lang]['language'], langs[lang]['value']))
                 #Get descriptions in multiple languages
                 langs = pydash.get(record, 'descriptions')
                 for lang in langs:
                     wd.write("{},{},{}\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''")))
-                    # cur.execute("""
-                    #     INSERT INTO wikidata_descrip (source_id, language, description)
-                    #     VALUES (%s, %s, %s);
-                    #     """,
-                    #     (item_id, langs[lang]['language'], langs[lang]['value']))
                 if english_label != None:
                     wr.write("{},{},{},{},{}\n".format(item_id, item_type, english_label.replace("'", "''"), latitude, longitude))
-                # cur.execute("""
-                #     INSERT INTO wikidata_records (source_id, type, name, latitude, longitude, the_geom, gadm2)
-                #     (SELECT %(id)s, %(type)s, %(name)s, %(latitude)s, %(longitude)s, ST_SETSRID(ST_POINT(%(longitude)s, %(latitude)s), 4326), g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 FROM gadm2 g WHERE ST_INTERSECTS(g.the_geom, ST_SETSRID(ST_POINT(%(longitude)s, %(latitude)s), 4326)));
-                #     """,
-                #     {'id': item_id, 'type': item_type, 'name': english_label, 'latitude': latitude, 'longitude': longitude})
-                i += 1
     cur.close()
     conn.close()
     wn.close()

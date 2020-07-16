@@ -11,6 +11,7 @@ library(DT)
 library(rgbif)
 library(shinyjs)
 library(rmarkdown)
+#library(rpostgis)
 
 
 #Settings----
@@ -20,7 +21,7 @@ github_link <- "https://github.com/Smithsonian/Mass-Georeferencing"
 options(stringsAsFactors = FALSE)
 options(encoding = 'UTF-8')
 #Logfile
-logfile <- paste0("logs/", format(Sys.time(), "%Y%m%d_%H%M%S"), ".txt")
+#logfile <- paste0("logs/", format(Sys.time(), "%Y%m%d_%H%M%S"), ".txt")
 
 
 #Settings
@@ -379,9 +380,34 @@ server <- function(input, output, session) {
       
       for (i in seq(1, dim(collections)[1])){
           collex_menu <- paste0(collex_menu, "<li><a href=\"./?collex_id=", collections$collex_id[i], "\">", collections$collex_name[i], "</a> - ", collections$collex_definition[i], "</li>")
+          
+          api_req <- httr::POST(URLencode(paste0(api_url, "mg/collex_dl")),
+                                body = list(collex_id = collections$collex_id[i]),
+                                httr::add_headers(
+                                  "X-Api-Key" = app_api_key
+                                ),
+                                encode = "form"
+          )
+          
+          collex_dl <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
+          
+          if (is.null(collex_dl) == FALSE){
+            if (is.null(dim(collex_dl)) == FALSE){
+              
+              collex_menu <- paste0(collex_menu, "<em>Downloads</em>: <ul>")
+              for (c in seq(1, dim(collex_dl)[1])){
+                collex_menu <- paste0(collex_menu, "<li><a href=\"", collex_dl$dl_file_path[c], "\">Path to exported files</a></li>")
+              }
+              
+              collex_menu <- paste0(collex_menu, "</ul>")
+            }
+            
+          }
+          
+          collex_menu <- paste0(collex_menu, "</li>")
       }
             
-      collex_menu <- paste0(collex_menu, "</ul></ul></p>")
+      collex_menu <- paste0(collex_menu, "</ul></p>")
       
       HTML(collex_menu)
     }
@@ -425,6 +451,17 @@ server <- function(input, output, session) {
       names(species) <- species
     }
     
+    #if (collex$no_selected_matches > 0){
+        to_dl <- HTML("<p><b>Generate exports to download the georeferenced data:</b></p>")
+        to_dl2 <- actionButton("generate_dl", "Default Recipe", class = "btn-success")
+        to_dl3 <- actionButton("generate_dl2", "Recipe 1 (SQL and KMZ) - coming soon", class = "btn-success disabled")
+        to_dl4 <- actionButton("generate_dl2", "Recipe VZ (CSV, SQL, and SHP) - coming soon", class = "btn-success disabled")
+        to_dl5 <- actionButton("generate_dl2", "Recipe VZ 2 (CSV, SQL, and KMZ) - coming soon", class = "btn-success disabled")
+    # }else{
+    #   to_dl <- ""
+    #   to_dl2 <- ""
+    # }
+    
     tagList(
       selectInput("species", "Select a species:", species),
       actionButton("submit_species", "Georeference species records", class = "btn-primary"),
@@ -437,7 +474,16 @@ server <- function(input, output, session) {
                   <dt>", prettyNum(collex$no_species, big.mark = ",", scientific = FALSE), "</dt><dd>Species</dd>
                   <dt>", prettyNum(collex$no_records, big.mark = ",", scientific = FALSE), "</dt><dd>No. records</dd>
                   <dt>", prettyNum(collex$no_recordgroups, big.mark = ",", scientific = FALSE), "</dt><dd>No. record groups</dd>
-                  <dt>", prettyNum(collex$no_selected_matches, big.mark = ",", scientific = FALSE), " (", round((collex$no_selected_matches/collex$no_recordgroups) * 100, 2), "%)</dt><dd>Georeferenced record groups</dd></dl>"))
+                  <dt>", prettyNum(collex$no_selected_matches, big.mark = ",", scientific = FALSE), " (", round((collex$no_selected_matches/collex$no_recordgroups) * 100, 2), "%)</dt><dd>Georeferenced record groups</dd></dl>")),
+      
+      to_dl,
+      to_dl2,
+      p(),
+      to_dl3,
+      p(),
+      to_dl4,
+      p(),
+      to_dl5
     )
   })
   
@@ -455,6 +501,67 @@ server <- function(input, output, session) {
     })
   })
     
+  
+  
+  
+  #Generate download----
+  observeEvent(input$generate_dl, {
+    
+    query <- parseQueryString(session$clientData$url_search)
+    collex_id <- query['collex_id']
+
+    # #Connect to the database ----
+    # if (Sys.info()["nodename"] == "shiny.si.edu"){
+    #   #For RHEL7 odbc driver
+    #   pg_driver = "PostgreSQL"
+    # }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
+    #   #For RHEL7 odbc driver
+    #   pg_driver = "PostgreSQL Unicode(x64)"
+    # }else{
+    #   pg_driver = "PostgreSQL Unicode"
+    # }
+    # 
+    # db <- dbConnect(odbc::odbc(),
+    #                 driver = pg_driver,
+    #                 database = pg_db,
+    #                 uid = pg_user,
+    #                 pwd = pg_pass,
+    #                 server = pg_host,
+    #                 port = 5432)
+
+    
+    
+    for (d in seq(1, dim(data_sources))){
+      
+      filespath <- sample(1000:9900, 1)
+      
+      data_source <- ""
+      data_source_filename <- paste0(data_source, "_geoms")
+      
+      system("mkdir -p /tmp/mg")
+      system("rm -f /tmp/mg/*")
+      
+      system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/", data_source_filename, ".shp gis \"SELECT uid, the_geom as geom FROM ", data_source, "\""))
+      
+      system(paste0("zip -j www/", filespath, "/", data_source_filename, ".zip /tmp/mg/", data_source_filename, ".*"))
+      system("rm -r /tmp/mg")
+    }
+    
+    #Georeferenced records
+    system("mkdir -p /tmp/mg")
+    system("rm -f /tmp/mg/*")
+    
+    system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/occ_results.shp gis \"SELECT uid, the_geom as geom FROM mg_occurrence\""))
+    
+    system(paste0("zip -j www/", filespath, "/occ_results_.zip /tmp/mg/occ_results.*"))
+    system("rm -r /tmp/mg")
+    
+    output$species <- renderUI({
+      HTML("Generating files. Please wait...")
+    })
+  })
+  
+  
   
   #Species selected----
   #species records header----

@@ -12,17 +12,13 @@
 #
 #Import modules
 import os, logging, sys, locale, uuid, glob, time
-import subprocess, pycountry, swifter, datetime
-#import unicodedata
+import subprocess, pycountry, swifter, datetime, unicodedata
 import pandas as pd
-#import numpy as np
 from time import localtime, strftime
-#from fuzzywuzzy import fuzz
 from rapidfuzz import fuzz
 from pyfiglet import Figlet
 import psycopg2, psycopg2.extras
 from psycopg2.extras import execute_batch
-import random
 from nltk.corpus import stopwords
 from tqdm import tqdm
 
@@ -31,6 +27,7 @@ from tqdm import tqdm
 import settings
 
 
+#Track how long the batch process takes
 start = time.time()
 
 
@@ -90,7 +87,12 @@ logger1 = logging.getLogger("batch_georef")
 #Connect to the database
 try:
     logger1.info("Connecting to the database.")
-    conn = psycopg2.connect(host = settings.pg_host, database = settings.pg_db, user = settings.pg_user, connect_timeout = 60)
+    conn = psycopg2.connect(
+                host = settings.pg_host, 
+                database = settings.pg_db, 
+                user = settings.pg_user, 
+                connect_timeout = 60
+            )
 except:
     logger1.error("Could not connect to server.")
     sys.exit(1)
@@ -117,10 +119,6 @@ if len(scinames) == 0:
 logger1.info("Deleting old matches...")
 cur.execute(queries.delete_collex_matches, (settings.collex_id,))
 logger1.debug(cur.query)
-
-
-#Randomize species
-random.shuffle(scinames)
 
 
 #To remove stop words
@@ -516,7 +514,10 @@ for sciname in scinames:
         allcandidates = pd.DataFrame(cur.fetchall())
         if len(allcandidates) > 0:
             logger1.info("Matching spatial location for {} candidates of {}".format(len(allcandidates), sciname['species']))
-            allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
+            #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
+            #tqdm.pandas(tqdm(total = allcandidates.shape[0]))
+            tqdm.pandas(desc="spatial")
+            allcandidates.progress_apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
         del allcandidates
         # Limit the matches to a polygon for the collection
         # if settings.collex_polygon == True:
@@ -531,8 +532,8 @@ for sciname in scinames:
     #Calculate candidates by recordgroup
     cur.execute(queries.recordgroups_stats, {'species': sciname['species'], 'collex_id': settings.collex_id})
     logger1.debug(cur.query)
-    logger1.info("Removing candidates with low scores...")
-    delete_lowscore(cur, logger1)
+    logger1.info("Removing candidates for {} with low scores...".format(sciname['species']))
+    delete_lowscore(sciname['species'], cur, logger1)
     #Remove recgroups without candidates
     logger1.info("Cleanup...")
     cur.execute("DELETE FROM mg_recordgroups WHERE collex_id = '{collex_id}' AND species = '{species}' AND no_candidates = 0".format(collex_id = settings.collex_id, species = sciname['species']))
