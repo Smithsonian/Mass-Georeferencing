@@ -2,6 +2,35 @@
 
 System and workflows for the mass georeferencing of museum records using known localities from collections and spatial databases.
 
+## Requirements
+
+ * Linux Server
+ * PostgreSQL with PostGIS
+ * Python3
+    ** rapidfuzz
+    ** tqdm
+    ** pycountry
+    ** swifter
+    ** pandas
+    ** pyfiglet
+    ** psycopg2
+    ** nltk
+ * R
+    ** shiny
+    ** shinyjs
+    ** leaflet
+    ** jsonlite
+    ** shinyWidgets
+    ** shinycssloaders
+    ** dplyr
+    ** sp
+    ** DT
+    ** rgbif
+    ** rmarkdown
+ * shp2pgsql
+
+
+
 ## Approach
 
 We are working on a system to test, develop, and showcase a new approach to allow to georeference museum records on a massive scale. This includes the setup of a set of tools by the institution's IT department, with help and input from GIS experts, to allow the collection staff to concentrate on the records instead of the overhead. For example, for the Smithsonian, the tasks would be divided between the IT team ([OCIO](https://www.si.edu/ocio "Office of the Chief Information Officer")) and the collection staff as:
@@ -28,6 +57,8 @@ The current version of the UI allows the collection staff to browse each species
 
 ## About
 
-This project is by the Digitization Program Office, OCIO, at the Smithsonian Institution.
+This is a project by the Digitization Program Office, OCIO, at the Smithsonian Institution.
 
 ![dpologo](https://user-images.githubusercontent.com/2302171/75351300-f00ca580-5875-11ea-89a6-cfa612395bc9.jpg)
+
+Available under an Apache 2.0 License.
