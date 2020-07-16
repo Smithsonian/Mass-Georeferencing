@@ -35,7 +35,7 @@ System and workflows for the mass georeferencing of museum records using known l
 
 We are working on a system to test, develop, and showcase a new approach to allow to georeference museum records on a massive scale. This includes the setup of a set of tools by the institution's IT department, with help and input from GIS experts, to allow the collection staff to concentrate on the records instead of the overhead. For example, for the Smithsonian, the tasks would be divided between the IT team ([OCIO](https://www.si.edu/ocio "Office of the Chief Information Officer")) and the collection staff as:
 
-![Georeferencing_IT](https://user-images.githubusercontent.com/2302171/75688119-e2d42a00-5c6c-11ea-87d1-e96d489d8334.png)
+![division of tasks](https://user-images.githubusercontent.com/2302171/87707101-934f5000-c76e-11ea-8484-9ca9682e3a17.png)
 
 ## Advantages
  * Web-based tools
@@ -53,7 +53,7 @@ We have started to develop a system based on PostGIS. The UI is written in R/Shi
 
 The current version of the UI allows the collection staff to browse each species, select a group of records and select the best match for that locality. 
 
-![georef1](https://user-images.githubusercontent.com/2302171/75689200-c6d18800-5c6e-11ea-9482-eff3e2850c87.png)
+![workflow_NMNH](https://user-images.githubusercontent.com/2302171/87707164-ad892e00-c76e-11ea-9b15-e24b5148042c.png)
 
 ## About
 
