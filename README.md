@@ -7,26 +7,26 @@ System and workflows for the mass georeferencing of museum records using known l
  * Linux Server
  * PostgreSQL with PostGIS
  * Python3
-    ** rapidfuzz
-    ** tqdm
-    ** pycountry
-    ** swifter
-    ** pandas
-    ** pyfiglet
-    ** psycopg2
-    ** nltk
+    * rapidfuzz
+    * tqdm
+    * pycountry
+    * swifter
+    * pandas
+    * pyfiglet
+    * psycopg2
+    * nltk
  * R
-    ** shiny
-    ** shinyjs
-    ** leaflet
-    ** jsonlite
-    ** shinyWidgets
-    ** shinycssloaders
-    ** dplyr
-    ** sp
-    ** DT
-    ** rgbif
-    ** rmarkdown
+    * shiny
+    * shinyjs
+    * leaflet
+    * jsonlite
+    * shinyWidgets
+    * shinycssloaders
+    * dplyr
+    * sp
+    * DT
+    * rgbif
+    * rmarkdown
  * shp2pgsql
 
 
