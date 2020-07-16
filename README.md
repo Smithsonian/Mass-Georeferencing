@@ -47,6 +47,8 @@ We are working on a system to test, develop, and showcase a new approach to allo
    * Relevant data and spatial records included
  * Open source
 
+![batch](https://user-images.githubusercontent.com/2302171/87707200-c09bfe00-c76e-11ea-9b90-566eb46946ef.png)
+
 ## Development
 
 We have started to develop a system based on PostGIS. The UI is written in R/Shiny, but will be ported to Python to keep a consistent language across the components of the project. 
