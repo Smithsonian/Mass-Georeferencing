@@ -7,16 +7,13 @@
 #   and based on script at https://akbaritabar.netlify.com/how_to_use_a_wikidata_dump
 # 
 
-import json, pydash, os, sys, psycopg2, bz2
+import json, pydash, os, sys, bz2
 from pathlib import Path
 from tqdm import tqdm
 #To measure how long it takes
 import time
 
 start_time = time.time()
-
-#Get postgres creds
-import settings
 
 
 
@@ -67,34 +64,6 @@ if __name__ == '__main__':
         )
     )
     args = parser.parse_args()
-    #Connect to Postgres
-    # Password is read from the user's .pgpass file
-    conn = psycopg2.connect(host = settings.host, database = settings.db, user = settings.user)
-    conn.autocommit = True
-    cur = conn.cursor()
-    cur.execute("UPDATE data_sources SET is_online = 'f' WHERE datasource_id = 'wikidata'")
-    #Delete indices for bulk loading
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_id_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_name_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_name_trgm_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_the_geom_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_uid_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_records_gadm2_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_names_name_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_names_name_trgm_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_names_id_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_names_lang_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_descrip_descr_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_descrip_descr_trgm_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_descrip_id_idx")
-    cur.execute("DROP INDEX IF EXISTS wikidata_descrip_lang_idx")
-    #Empty tables
-    cur.execute("DELETE FROM wikidata_names")
-    cur.execute("VACUUM wikidata_names")
-    cur.execute("DELETE FROM wikidata_descrip")
-    cur.execute("VACUUM wikidata_descrip")
-    cur.execute("DELETE FROM wikidata_records")
-    cur.execute("VACUUM wikidata_records")
     #Export data to CSV
     wn = open("wikidata_names.csv", "w")
     wd = open("wikidata_descrip.csv", "w")
@@ -128,15 +97,13 @@ if __name__ == '__main__':
                 #Get labels in multiple languages
                 langs = pydash.get(record, 'labels')
                 for lang in langs:
-                    wn.write("{},{},{}\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''")))
+                    wn.write("\"{}\",\"{}\",\"{}\"\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''").replace("\"", "")))
                 #Get descriptions in multiple languages
                 langs = pydash.get(record, 'descriptions')
                 for lang in langs:
-                    wd.write("{},{},{}\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''")))
+                    wd.write("\"{}\",\"{}\",\"{}\"\n".format(item_id, langs[lang]['language'], langs[lang]['value'].replace("'", "''").replace("\"", "''")))
                 if english_label != None:
-                    wr.write("{},{},{},{},{}\n".format(item_id, item_type, english_label.replace("'", "''"), latitude, longitude))
-    cur.close()
-    conn.close()
+                    wr.write("\"{}\",\"{}\",\"{}\",{},{}\n".format(item_id, item_type, english_label.replace("'", "''").replace("\"", "''"), latitude, longitude))
     wn.close()
     wd.close()
     wr.close()
