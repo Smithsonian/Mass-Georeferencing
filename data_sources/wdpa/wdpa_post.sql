@@ -108,3 +108,14 @@ UPDATE wdpa_polygons g SET gadm2 = d.loc FROM data d WHERE g.uid = d.uid;*/
 
 CREATE INDEX wdpa_polygons_gadm2_idx ON wdpa_polygons USING gin (gadm2 gin_trgm_ops);
 CREATE INDEX wdpa_points_gadm2_idx ON wdpa_points USING gin (gadm2 gin_trgm_ops);
+
+
+
+ALTER TABLE wdpa_polygons ADD COLUMN uncertainty_m float;
+
+UPDATE wdpa_polygons w SET uncertainty_m = 
+    round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius)
+FROM
+    utm_zones u
+WHERE 
+    st_intersects(w.the_geom, u.the_geom);

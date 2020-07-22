@@ -13,7 +13,7 @@ from rapidfuzz import fuzz
 import settings
 
 
-def check_spatial(data_source, candidate_id, species, feature_id, cur, log):
+def check_spatial(data_source, candidate_id, feature_id, species, cur, log):
     """
     Get the distance from the species' range
     To convert to API call
@@ -270,15 +270,17 @@ def process_cands(candidates, record, cur, log, gbif = False, state = True):
     #candidates['score1'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
     tqdm.pandas(desc="score1")
     candidates['score1'] = candidates.progress_apply(lambda row : fuzz.partial_ratio(record['locality'], row['name_ascii']), axis = 1)
+    candidates['score1_type'] = "locality.partial_ratio"
     #locality.token_set_ratio
     #candidates['score2'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
     tqdm.pandas(desc="score2")
     candidates['score2'] = candidates.progress_apply(lambda row : fuzz.token_set_ratio(record['locality_without_stopwords'], row['name_ascii']), axis = 1)
+    candidates['score2_type'] = "locality.token_set_ratio"
     #candidates['score_locality'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : max(row['score1'], row['score2']), axis = 1)
-    tqdm.pandas(desc="score_locality")
+    #tqdm.pandas(desc="score_locality")
     #allcandidates.progress_apply
-    candidates['score_locality'] = candidates.progress_apply(lambda row : max(row['score1'], row['score2']), axis = 1)
-    candidates['score_locality_type'] = "locality"
+    #candidates['score_locality'] = candidates.progress_apply(lambda row : max(row['score1'], row['score2']), axis = 1)
+    #candidates['score_locality_type'] = "locality"
     #stateprovince
     if state == True:
         #candidates['score_state'] = candidates.swifter.set_npartitions(npartitions = settings.no_cores).allow_dask_on_strings(enable=True).apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
@@ -287,14 +289,20 @@ def process_cands(candidates, record, cur, log, gbif = False, state = True):
         candidates['score_state'] = candidates.progress_apply(lambda row : fuzz.partial_ratio(record['stateprovince'], row['stateprovince_ascii']), axis = 1)
         candidates['score_state_type'] = "stateprovince"
     #Drop candidates with too low locality score
-    candidates = candidates[candidates.score_locality > 70]
+    candidates = candidates[(candidates.score1 + candidates.score2) > 140]
     candidates.insert(len(candidates.columns), 'recgroup_id', record['recgroup_id'])
     if gbif == False:
         candidates = candidates.assign(no_features = 1)
+    #Select top 50 candidates
+    if state == True:
+        candidates = candidates.nlargest(50, ['score1', 'score2', 'score_state', 'no_features'])
+    else:
+        candidates = candidates.nlargest(50, ['score1', 'score2', 'no_features'])
     #Insert candidates and each score
     insert_candidates(candidates[['candidate_id', 'recgroup_id', 'data_source', 'uid', 'no_features']].copy(), cur, log)
     #locality
-    insert_scores(candidates[['candidate_id', 'score_locality_type', 'score_locality']].copy(), cur, log)
+    insert_scores(candidates[['candidate_id', 'score1_type', 'score1']].copy(), cur, log)
+    insert_scores(candidates[['candidate_id', 'score2_type', 'score2']].copy(), cur, log)
     if state == True:
         #stateprovince
         insert_scores(candidates[['candidate_id', 'score_state_type', 'score_state']].copy(), cur, log)
@@ -336,3 +344,5 @@ def delete_lowscore(species, cur, log):
     cur.execute(query.format(species = species, collex_id = settings.collex_id, threshold = settings.min_score))
     log.debug(cur.query)
     return
+
+

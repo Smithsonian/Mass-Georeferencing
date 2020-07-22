@@ -13,13 +13,20 @@ delete_collex_matches = "DELETE FROM mg_recordgroups WHERE collex_id = %s"
 get_spp_countries = "SELECT countrycode FROM mg_occurrences WHERE species = %s AND collex_id = %s AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) GROUP BY countrycode"
 
 
-get_records_for_country = "SELECT locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, elevation, count(*) AS no_records FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND collex_id = %(collex_id)s AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) GROUP BY locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, elevation"
+#get_records_for_country = "SELECT locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, elevation, count(*) AS no_records FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND collex_id = %(collex_id)s AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) GROUP BY locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, elevation"
+
+get_records_for_country = "SELECT locality, stateprovince, countrycode, species, count(*) AS no_records FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND collex_id = %(collex_id)s AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) GROUP BY locality, stateprovince, countrycode, species, elevation"
 
 
-insert_mg_recordgroups = "INSERT INTO mg_recordgroups (recgroup_id, collex_id, locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, no_records) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+insert_mg_recordgroups = "INSERT INTO mg_recordgroups (recgroup_id, collex_id, locality, stateprovince, countrycode, species, no_records) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+
+#insert_mg_recordgroups = "INSERT INTO mg_recordgroups (recgroup_id, collex_id, locality, stateprovince, countrycode, recordedby, kingdom, phylum, class, _order, family, genus, species, no_records) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
 
-insert_mg_records = "INSERT INTO mg_records (recgroup_id, mg_occurrenceid, updated_at) (SELECT %(recgroup_id)s AS recgroup_id, mg_occurrenceid, NOW() FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND decimallatitude IS NULL AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND locality = %(locality)s AND stateprovince = %(stateprovince)s AND kingdom = %(kingdom)s AND phylum = %(phylum)s AND class = %(class)s AND _order = %(_order)s AND family = %(family)s AND genus = %(genus)s)"
+#insert_mg_records = "INSERT INTO mg_records (recgroup_id, mg_occurrenceid, updated_at) (SELECT %(recgroup_id)s AS recgroup_id, mg_occurrenceid, NOW() FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND decimallatitude IS NULL AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND locality = %(locality)s AND stateprovince = %(stateprovince)s AND kingdom = %(kingdom)s AND phylum = %(phylum)s AND class = %(class)s AND _order = %(_order)s AND family = %(family)s AND genus = %(genus)s)"
+
+insert_mg_records = "INSERT INTO mg_records (recgroup_id, mg_occurrenceid, updated_at) (SELECT %(recgroup_id)s AS recgroup_id, mg_occurrenceid, NOW() FROM mg_occurrences WHERE species = %(species)s AND countrycode = %(countrycode)s AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND locality = %(locality)s AND stateprovince = %(stateprovince)s)"
+
 
 
 gbif_species_country = "SELECT MAX(gbifid::bigint) AS uid, locality AS name, count(*) AS no_records, countrycode, trim(leading ', ' FROM replace(municipality || ', ' || county || ', ' || stateprovince || ', ' || countrycode, ', , ', '')) AS located_at, stateprovince, recordedBy, decimallatitude, decimallongitude, count(*) AS no_features, 'gbif.species' AS data_source FROM gbif WHERE species = '{species}' AND lower(locality) <> ANY(ARRAY['none', 'unknown', 'no locality data']) AND countrycode = '{countrycode}' AND decimallatitude IS NOT NULL GROUP BY countrycode, locality, municipality, county, stateprovince, recordedBy, decimallatitude, decimallongitude"
@@ -149,10 +156,10 @@ collexpoly_gadm_country = """
         SELECT uid, name_2 || ' ' || type_2 || ', ' || name_1 as name, name_1 || ', ' || name_0 AS stateprovince, 'gadm' AS data_source, the_geom FROM gadm2 WHERE gid_0 = %(iso)s AND name_0 = 'United States'
         UNION
         (SELECT uid, g.name_2 || ', ' || s.abbreviation as name, name_1 || ', ' || name_0 AS stateprovince, 'gadm' AS data_source, the_geom FROM gadm2 g, us_state_abbreviations s WHERE gid_0 = %(iso)s AND g.name_1 = s.state AND g.name_0 = 'United States'
-        GROUP BY uid, name, stateprovince)
+        GROUP BY uid, name, stateprovince, the_geom)
         UNION
         (SELECT uid, g.name_2 || ' Co., ' || s.abbreviation as name, name_1 || ', ' || name_0 AS stateprovince, 'gadm' AS data_source, the_geom FROM gadm2 g, us_state_abbreviations s WHERE gid_0 = %(iso)s AND g.name_1 = s.state AND g.name_0 = 'United States'
-        GROUP BY uid, name, stateprovince)
+        GROUP BY uid, name, stateprovince, the_geom)
     )
         SELECT d.uid, d.name, d.stateprovince, d.data_source FROM data d, mg_polygons g WHERE g.collex_id = '{collex_id}'::uuid AND ST_INTERSECTS(d.the_geom, g.the_geom) GROUP BY d.uid, d.name, d.stateprovince, d.data_source
         """
@@ -551,7 +558,7 @@ collexpoly_osm_by_country = """
                 WHERE 
                     gadm2 ILIKE %(country)s
                 GROUP BY 
-                    uid, name, gadm2)
+                    uid, name, gadm2, the_geom)
             SELECT d.uid, d.name, d.stateprovince, d.data_source FROM data d, mg_polygons g WHERE g.collex_id = '{collex_id}'::uuid AND ST_INTERSECTS(d.the_geom, g.the_geom) GROUP BY d.uid, d.name, d.stateprovince, d.data_source
             """
 

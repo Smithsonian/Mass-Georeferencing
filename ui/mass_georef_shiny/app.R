@@ -11,7 +11,11 @@ library(DT)
 library(rgbif)
 library(shinyjs)
 library(rmarkdown)
+library(DBI)
 #library(rpostgis)
+library(httr)
+library(uuid)
+set_config(config(ssl_verifypeer = 0L))
 
 
 #Settings----
@@ -29,25 +33,6 @@ source("settings.R")
 source("leafletmap.R")
 
 
-
-# #Connect to the database ----
-# if (Sys.info()["nodename"] == "shiny.si.edu"){
-#   #For RHEL7 odbc driver
-#   pg_driver = "PostgreSQL"
-# }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
-#   #For RHEL7 odbc driver
-#   pg_driver = "PostgreSQL Unicode(x64)"
-# }else{
-#   pg_driver = "PostgreSQL Unicode"
-# }
-# 
-# db <- dbConnect(odbc::odbc(),
-#                 driver = pg_driver,
-#                 database = pg_db,
-#                 uid = pg_user,
-#                 pwd = pg_pass,
-#                 server = pg_host,
-#                 port = 5432)
 
 
 
@@ -451,16 +436,19 @@ server <- function(input, output, session) {
       names(species) <- species
     }
     
-    #if (collex$no_selected_matches > 0){
-        to_dl <- HTML("<p><b>Generate exports to download the georeferenced data:</b></p>")
+    to_dl <- HTML("<p><b>Generate exports to download the georeferenced data:</b></p>")
+    
+    if (collex$no_selected_matches > 0){
         to_dl2 <- actionButton("generate_dl", "Default Recipe", class = "btn-success")
         to_dl3 <- actionButton("generate_dl2", "Recipe 1 (SQL and KMZ) - coming soon", class = "btn-success disabled")
         to_dl4 <- actionButton("generate_dl2", "Recipe VZ (CSV, SQL, and SHP) - coming soon", class = "btn-success disabled")
         to_dl5 <- actionButton("generate_dl2", "Recipe VZ 2 (CSV, SQL, and KMZ) - coming soon", class = "btn-success disabled")
-    # }else{
-    #   to_dl <- ""
-    #   to_dl2 <- ""
-    # }
+    }else{
+        to_dl2 <- p("Select matches to enable the export function...")
+        to_dl3 <- ""
+        to_dl4 <- ""
+        to_dl5 <- ""
+    }
     
     tagList(
       selectInput("species", "Select a species:", species),
@@ -504,63 +492,110 @@ server <- function(input, output, session) {
   
   
   
-  #Generate download----
+  #generate_dl - Generate download----
   observeEvent(input$generate_dl, {
     
     query <- parseQueryString(session$clientData$url_search)
     collex_id <- query['collex_id']
 
-    # #Connect to the database ----
-    # if (Sys.info()["nodename"] == "shiny.si.edu"){
-    #   #For RHEL7 odbc driver
-    #   pg_driver = "PostgreSQL"
-    # }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
-    #   #For RHEL7 odbc driver
-    #   pg_driver = "PostgreSQL Unicode(x64)"
-    # }else{
-    #   pg_driver = "PostgreSQL Unicode"
+    #Connect to the database ----
+    if (Sys.info()["nodename"] == "shiny.si.edu"){
+      #For RHEL7 odbc driver
+      pg_driver = "PostgreSQL"
+    }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
+      #For RHEL7 odbc driver
+      pg_driver = "PostgreSQL Unicode(x64)"
+    }else{
+      pg_driver = "PostgreSQL Unicode"
+    }
+
+    db <- dbConnect(odbc::odbc(),
+                    driver = pg_driver,
+                    database = pg_db,
+                    uid = pg_user,
+                    pwd = pg_pass,
+                    server = pg_host,
+                    port = 5432)
+
+    # Create a Progress object
+    progress <- shiny::Progress$new()
+    # Make sure it closes when we exit this reactive, even if there's an error
+    on.exit(progress$close())
+    
+    progress$set(message = "Exporting data from database", value = 0.05)
+    
+    # getdl_query <- paste0("SELECT o.* FROM mg_occurrences o, mg_selected_candidates s, WHERE s.collex_id = '", collex_id, "'")
+    # collex_data <- dbGetQuery(db, getdl_query)
+    # 
+    getdl_query <- paste0("SELECT data_source, point_or_polygon, count(*) as no_records FROM mg_selected_candidates WHERE collex_id = '", collex_id, "' GROUP BY data_source, point_or_polygon")
+    datasources <- dbGetQuery(db, getdl_query)
+    
+    steps <- 0.9 / dim(datasources)[1]
+    
+    progress$set(message = "Exporting layers from database", value = 0.1)
+    
+    filespath <- toupper(UUIDgenerate())
+    
+    no_recs <- sum(datasources$no_records)
+    
+    ins_query <- paste0("INSERT INTO mg_collex_dl (collex_id, dl_recipe, dl_file_path, dl_norecords) VALUES ('", collex_id, "'::UUID, 'Default', '", filespath, "', '", no_recs, "')")
+    
+    dbSendQuery(db, ins_query)
+    
+    Sys.sleep(5)
+    
+    # system(paste0("mkdir -p www/", filespath))
+    # 
+    # links <- "<h3>Links to downloads:</h3>"
+    # 
+    # for (d in seq(1, dim(datasources)[1])){
+    #   
+    #   progress$set(message = paste0("Exporting ", datasources$data_source[d], " (", datasources$point_or_polygon[d], ") from database"), value = 0.1 + (d * steps))
+    #   
+    #   
+    #   data_source <- ""
+    #   data_source_filename <- paste0(datasources$data_source[d], "_", datasources$point_or_polygon[d], "_geoms")
+    #   
+    #   system("mkdir -p /tmp/mg")
+    #   system("rm -f /tmp/mg/*")
+    #   
+    #   query <- paste0("SELECT d.uid geom_id, d.name as geom_name, d.the_geom as geom, o.* FROM mg_occurrences o,     topo_map_polygons d,     mg_selected_candidates c,     mg_recordgroups r,     mg_records mgr WHERE     o.collex_id = '", collex_id, "'::uuid and o.collex_id = c.collex_id    and c.recgroup_id = r.recgroup_id   and r.recgroup_id = mgr.recgroup_id   and o.mg_occurrenceid = mgr.mg_occurrenceid  and d.uid IN   (SELECT feature_id::uuid as uid FROM mg_candidates WHERE candidate_id IN ( SELECT candidate_id AS uid FROM mg_selected_candidates WHERE data_source = 'topo_map_polygons' AND collex_id = '", collex_id, "'::uuid))")
+    #   
+    #   data <- dbGetQuery(db, query)
+    #     
+    #   system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/", data_source_filename, ".shp gis \"", query, "\""))
+    #   
+    #   system(paste0("zip -j www/", filespath, "/", data_source_filename, ".zip /tmp/mg/", data_source_filename, ".*"))
+    #   system("rm -r /tmp/mg")
+    #   
+    #   links <- paste0(links, "<p><a href=\"", filespath, "/", data_source_filename, ".zip\">", datasources$data_source[d], "</a></p>")
+    #   
     # }
     # 
-    # db <- dbConnect(odbc::odbc(),
-    #                 driver = pg_driver,
-    #                 database = pg_db,
-    #                 uid = pg_user,
-    #                 pwd = pg_pass,
-    #                 server = pg_host,
-    #                 port = 5432)
-
+    # #Georeferenced records
+    # system("mkdir -p /tmp/mg")
+    # system("rm -f /tmp/mg/*")
+    # 
+    # system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/occ_results.shp gis \"SELECT uid, the_geom as geom FROM mg_occurrence\""))
     
-    
-    for (d in seq(1, dim(data_sources))){
-      
-      filespath <- sample(1000:9900, 1)
-      
-      data_source <- ""
-      data_source_filename <- paste0(data_source, "_geoms")
-      
-      system("mkdir -p /tmp/mg")
-      system("rm -f /tmp/mg/*")
-      
-      system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/", data_source_filename, ".shp gis \"SELECT uid, the_geom as geom FROM ", data_source, "\""))
-      
-      system(paste0("zip -j www/", filespath, "/", data_source_filename, ".zip /tmp/mg/", data_source_filename, ".*"))
-      system("rm -r /tmp/mg")
-    }
-    
-    #Georeferenced records
-    system("mkdir -p /tmp/mg")
-    system("rm -f /tmp/mg/*")
-    
-    system(paste0("pgsql2shp -u ", pg_user, " -h ", pg_host, " -P ", pg_pass, " -f /tmp/mg/occ_results.shp gis \"SELECT uid, the_geom as geom FROM mg_occurrence\""))
-    
-    system(paste0("zip -j www/", filespath, "/occ_results_.zip /tmp/mg/occ_results.*"))
-    system("rm -r /tmp/mg")
+    # system(paste0("zip -j www/", filespath, "/occ_results_.zip /tmp/mg/occ_results.*"))
+    # system("rm -r /tmp/mg")
+    # 
+    # output$species <- renderUI({
+    #   HTML("Generating files. Please wait...")
+    # })
+    output$main <- renderUI({
+      HTML(paste0("<br><p><a href=\"https://dpogis.si.edu/dl/", filespath, "\">Click here to download the files</a>.</p><br><br><p>Generating downloads may take a minute.</p><br><br><p><a href=\"./\">Home</a><hr>"))
+    })
     
     output$species <- renderUI({
-      HTML("Generating files. Please wait...")
+      HTML("&nbsp;")
+    })
+    
+    output$maingroup <- renderUI({
+      HTML("&nbsp;")
     })
   })
-  
   
   
   #Species selected----
@@ -615,12 +650,19 @@ server <- function(input, output, session) {
     
     records <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
     
-    records <- arrange(records, desc(no_records))
-    
-    session$userData$speciesrecords <- records
+    if (length(records) > 0){
+      records <- arrange(records, desc(no_records))
+      session$userData$speciesrecords <- records
+    }else{
+      output$main <- renderUI({
+        HTML(paste0("<br><br><p><strong>No more records available. Please select another species in the <a href=\"./?collex_id=", collex_id, "\">main menu</a></strong></p>"))
+      })
+      
+      req(FALSE)
+      
+    }
     
     records <- records[c("locality", "countrycode", "no_records")]
-    
     names(records) <- c("Locality", "Country", "No. records") 
     
     DT::datatable(records, 
@@ -629,7 +671,7 @@ server <- function(input, output, session) {
                                ordering = TRUE,
                                pageLength = 5,
                                paging = TRUE,
-                               language = list(zeroRecords = "No matches found")
+                               language = list(zeroRecords = "No more records available")
                 ),
                 rownames = FALSE,
                 selection = 'single',
@@ -765,7 +807,7 @@ server <- function(input, output, session) {
     
     group_records <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
     group_records <- select(as.data.frame(group_records), -mg_occurrenceid)
-    group_records$occurrenceid <- paste0("<a href='",group_records$occurrenceid,"' target='_blank'>",group_records$occurrenceid,"</a>")
+    #group_records$occurrenceid <- paste0("<a href='",group_records$occurrenceid,"' target='_blank'>",group_records$occurrenceid,"</a>")
     
     DT::datatable(group_records,
                   escape = FALSE,
@@ -1061,8 +1103,13 @@ server <- function(input, output, session) {
     output$map <- renderLeaflet({
       spp_map <- session$userData$spp_map
       spp_map_data <- session$userData$spp_map_data
-      #print(spp_map_data)
-      leaflet_map(species_data = spp_map_data, candidate = TRUE, candidate_data = candidate_selected, markers = TRUE, markers_data = other_candidates)
+      
+      if (is.null(spp_map_data)){
+        leaflet_map(species_map = FALSE, candidate = TRUE, candidate_data = candidate_selected, markers = TRUE, markers_data = other_candidates)
+      }else{
+        leaflet_map(species_data = spp_map_data, candidate = TRUE, candidate_data = candidate_selected, markers = TRUE, markers_data = other_candidates)
+      }
+      
     })
     
     api_req <- httr::POST(URLencode(paste0(api_url, "mg/candidate_scores")),
@@ -1237,8 +1284,7 @@ server <- function(input, output, session) {
       
       the_feature <- fromJSON(httr::content(api_req, as = "text", encoding = "UTF-8"), flatten = FALSE, simplifyVector = TRUE)
       
-      print(1181)
-      print(the_feature)
+      session$userData$the_feature <- the_feature
       
       uncert <- the_feature$coordinateuncertaintyinmeters
       
@@ -1392,9 +1438,12 @@ server <- function(input, output, session) {
       size = "m",
       title = "Help",
       br(),
-      p("This application is a demo on an approach to georeference records on a massive scale. The georeferencing clusters records by species that share similar localities. Then, the system will display possible matches based on similar localities in GBIF, as well as locations from other databases."),
-      p("It is recommneded to run this application in full screen (F11) in a full HD display (1920x1080)."),
-      p("Area of polygons is measured in meters using a UTM projection."),
+      HTML("<p style=\"font-size:80%;\">This application is a demo on an approach to georeference records on a massive scale. The georeferencing clusters records by species that share similar localities. Then, the system will display possible matches based on similar localities in GBIF, as well as locations from other databases.</p>
+           <p style=\"font-size:80%;\">It is recommneded to run this application in full screen (F11) in a full HD display (1920x1080).</p>
+           <p style=\"font-size:80%;\">Area of polygons is measured in meters using a UTM projection.</p>"),
+      h4("Known Issues"),
+      HTML("<ul style=\"font-size:80%;\"><li>The login form may appear briefly while the page is loading</li><li>Invalid countries or country names written in non-standard ways will have less matches</li></ul>"),
+      h4("Data Sources"),
       DT::renderDataTable(DT::datatable(data_sources, 
                     escape = FALSE,
                     options = list(searching = FALSE,
@@ -1588,20 +1637,46 @@ server <- function(input, output, session) {
     candidate_id <- query['candidate_id']
     
     the_feature <- session$userData$the_feature
+    
     #Get uncertainty
-    uncert <- the_feature$min_bound_radius_m
-    if (is.null(uncert)){
-      u <- sliderInput("save_uncert", "Set the Uncertainty Value (in meters):",
-                  min = 0, max = 20000,
-                  value = 0, step = 25, width = "100%")
+    if (the_feature$layer == "gbif"){
+      uncert <- the_feature$coordinateuncertaintyinmeters
+      if (is.na(uncert)){
+        #if (is.na(uncert)){
+        u <- sliderInput("save_uncert", "Set the Uncertainty Value (in meters):",
+                         min = 0, max = 20000,
+                         value = 0, step = 25, width = "100%")
+      }else{
+        session$userData$uncert <- uncert
+        u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
+      }
     }else{
-      u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
+      uncert <- the_feature$min_bound_radius_m
+      if (is.null(uncert)){
+        #if (is.na(uncert)){
+        u <- sliderInput("save_uncert", "Set the Uncertainty Value (in meters):",
+                         min = 0, max = 20000,
+                         value = 0, step = 25, width = "100%")
+      }else{
+        session$userData$uncert <- uncert
+        u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
+      }
     }
+    # 
+    # if (is.na(uncert)){
+    #   #if (is.na(uncert)){
+    #   u <- sliderInput("save_uncert", "Set the Uncertainty Value (in meters):",
+    #               min = 0, max = 20000,
+    #               value = 0, step = 25, width = "100%")
+    # }else{
+    #   session$userData$uncert <- uncert
+    #   u <- p(paste0("Uncertainty: ", prettyNum(uncert, big.mark = ",", scientific = FALSE), "m"))
+    # }
     
     tagList(
       u,
       p(textInput("save_notes", "Notes:")),
-      p(actionButton("click_rec_save", "Review match", class = "btn-primary"))
+      p(actionButton("rec_save", "Review match", class = "btn-primary"))
     )
   })
   
@@ -1678,7 +1753,12 @@ server <- function(input, output, session) {
     data_source <- "Custom location"
     located_at <- located_at$intersection.located_at
     name <- this_row$locality
-  
+    
+    print(1692)
+    print(this_row)
+    print(1694)
+    print(located_at)
+    
     showModal(modalDialog(
       size = "l",
       title = "Save match",
@@ -1726,17 +1806,215 @@ server <- function(input, output, session) {
   
   
   
-  #click_rec_save modal----
-  observeEvent(input$write_db, {
+  
+  #rec_save modal----
+  observeEvent(input$rec_save, {
     
     records <- session$userData$records
     recgrp_id <- session$userData$recgrp_id
     species <- session$userData$species
     collex_id <- session$userData$collex_id
     
+    req(records)
+    req(recgrp_id)
+    req(species)
+    req(collex_id)
+    
+    #Get record group
+    this_row <- records[records$recgroup_id == recgrp_id,]
+    
+    #Selected match
+    the_feature <- session$userData$the_feature
+    
+    #Get uncertainty
+    uncert_slider <- input$save_uncert
+    
+    uncert <- session$userData$uncert
+    
+    if (is.null(uncert_slider)){
+      uncert_display <- paste0(prettyNum(uncert, big.mark = ",", scientific = FALSE), " m")
+    }else{
+      uncert <- uncert_slider
+      if (uncert_slider == 0){
+        uncert_display <- "NA"
+      }else{
+        uncert_display <- paste0(prettyNum(uncert_slider, big.mark = ",", scientific = FALSE), " m")
+      }
+    }
+  
+    
+    lat_to_save <- the_feature$latitude
+    lng_to_save <- the_feature$longitude
+    data_source <- the_feature$layer
+    located_at <- the_feature$located_at
+    name <- this_row$locality
+    
+    showModal(modalDialog(
+      size = "l",
+      title = "Save match",
+      fluidRow(
+        column(width = 6,
+               HTML("<div class=\"panel panel-primary\">
+        <div class=\"panel-heading\">
+        <h3 class=\"panel-title\">Record Group</h3>
+        </div>
+        <div class=\"panel-body\">"),
+               HTML(paste0("<dl>
+                      <dt>Locality</dt><dd>", this_row$locality, "</dd>
+                      <dt>No. records</dt><dd>", this_row$no_records, "</dd>
+                    ")),
+               HTML(paste0("
+                      <dt>Species</dt><dd><em>", this_row$species, "</em></dd>
+                      <dt>Family</dt><dd>", this_row$family, "</dd>
+                    </dl>")),
+               
+               HTML("</div></div>")
+        ),
+        column(width = 6,
+               HTML("<div class=\"panel panel-success\">
+        <div class=\"panel-heading\">
+        <h3 class=\"panel-title\">Selected Match</h3>
+          </div>
+          <div class=\"panel-body\">
+              <dl>
+                  <dt>Name</dt><dd>", name, "</dd>
+                  <dt>Located at</dt><dd>", located_at, "</dd>
+                  <dt>Locality uncertainty (m)</dt><dd>", uncert_display, "</dd>
+                  <dt>Source</dt><dd>", data_source, "</dd>
+                  <dt>Lat/Lon</dt><dd>", lat_to_save, " / ", lng_to_save, "</dd>
+                  <dt>Notes</dt><dd>", input$save_notes, "</dd>
+              </dl>"
+               ),
+               
+               HTML("</div></div>")
+        )
+      ),
+      br(),
+      p(actionButton("write_db", "Save locality for these records", class = "btn-primary")),
+      easyClose = TRUE
+    ))
+  })
+  
+  
+  
+  
+  #write_db modal----
+  observeEvent(input$write_db, {
+    records <- session$userData$records
+    recgrp_id <- session$userData$recgrp_id
+    species <- session$userData$species
+    collex_id <- session$userData$collex_id
+    candidate_id <- session$userData$candidate_id
+      
+    req(records)
+    req(recgrp_id)
+    req(species)
+    req(collex_id)
+    
+    #Get record group
+    #this_row <- records[records$recgroup_id == recgrp_id,]
+    
+    #Selected match
+    the_feature <- session$userData$the_feature
+    
+    
+    if (!is.null(input$map_click)){
+      #Get uncertainty
+      uncert <- input$uncert_slider
+      
+      p <- input$map_click
+      
+      click_lat <- format(round(as.numeric(p["lat"]), digits = 5), nsmall = 5)
+      click_lng <- format(round(as.numeric(p["lng"]), digits = 5), nsmall = 5)
+      
+      session$userData$click_lat <- click_lat
+      session$userData$click_lng <- click_lng
+      
+      #print(paste0("Click at: ", click_lat, "/", click_lng))
+      
+      icons <- awesomeIcons(icon = "map-pin",
+                            markerColor = "green",
+                            library = "fa")
+      
+      uncert_slider <- session$userData$uncert_slider
+      
+      query <- parseQueryString(session$clientData$url_search)
+      uncertainty_m <- query['uncertainty_m']
+      
+      if (is.null(uncert)){
+        input_uncert <- input$save_uncert
+      }else{
+        input_uncert <- uncert
+      }
+      
+      data_source <- 'custom'
+      point_or_polygon <- 'point'
+      candidate_id <- "00000000-0000-0000-0000-000000000000"
+    }else{
+      data_source <- the_feature$layer
+      point_or_polygon <- the_feature$geom_type
+      
+    }
+    
+    
+    
+    #collex_id
+    recgroup_id <- recgrp_id
+    #candidate_id
+    #data_source <- the_feature$layer
+    #point_or_polygon <- the_feature$geom_type
+    
+    
+    if (data_source == "gbif"){
+      uncert <- the_feature$coordinateuncertaintyinmeters
+      if (is.na(uncert)){
+        uncertainty_m <- "NULL"
+      }else{
+        uncertainty_m <- uncert
+      }
+    }else{
+      uncert <- the_feature$min_bound_radius_m
+      if (is.null(uncert)){
+        uncertainty_m <- "NULL"
+      }else{
+        uncertainty_m <- uncert
+      }
+    }
+    
+    
+    
+    if (is.null(input$save_notes)){
+      notes <- "NULL"
+    }else{
+      notes <- paste0("'", input$save_notes, "'")
+    }
+    
+    
+    # #Connect to the database ----
+    if (Sys.info()["nodename"] == "shiny.si.edu"){
+      #For RHEL7 odbc driver
+      pg_driver = "PostgreSQL"
+    }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
+      #For windows driver
+      pg_driver = "PostgreSQL Unicode(x64)"
+    }else{
+      pg_driver = "PostgreSQL Unicode"
+    }
+
+    db <- dbConnect(odbc::odbc(),
+                    driver = pg_driver,
+                    database = pg_db,
+                    uid = pg_user,
+                    pwd = pg_pass,
+                    server = pg_host,
+                    port = 5432)
+    
+    insert_query <- paste0("INSERT INTO mg_selected_candidates (collex_id, recgroup_id, candidate_id, data_source, point_or_polygon, uncertainty_m, notes) VALUES ('", collex_id, "', '", recgroup_id, "', '", candidate_id, "', '", data_source, "', '", point_or_polygon, "', ", uncertainty_m, ", ", notes, ")")
+    dbSendQuery(db, insert_query)
+    
     removeModal()
     output$main <- renderUI({
-      HTML(paste0("<script>$(location).attr('href', './?collex_id=", collex_id, "&species=", species, "')</script>"))
+      HTML(paste0("<script>$(location).attr('href', './?collex_id=", collex_id, "&species=", species, "&prev=", recgrp_id, "')</script>"))
     })
     
   })

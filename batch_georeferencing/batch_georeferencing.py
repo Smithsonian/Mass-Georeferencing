@@ -138,6 +138,8 @@ for sciname in scinames:
         cur.execute(queries.get_records_for_country, {'species': sciname['species'], 'countrycode': country['countrycode'], 'collex_id': settings.collex_id})
         logger1.debug(cur.query)
         records_g = pd.DataFrame(cur.fetchall())
+        if len(records_g) == 0:
+            continue
         #Create unique id
         records_g['recgroup_id'] = [uuid.uuid4() for _ in range(len(records_g.index))]
         records_g['recgroup_id'] = records_g['recgroup_id'].astype('str')
@@ -148,13 +150,15 @@ for sciname in scinames:
         #Remove diacritic characters
         records_g['locality_without_stopwords'] = records_g['locality_without_stopwords1'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
         del records_g['locality_without_stopwords1']
-        records_g['stateprovince'] = records_g['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
-        records_g_insert = records_g[['recgroup_id', 'collex_id', 'locality', 'stateprovince', 'countrycode', 'recordedby', 'kingdom', 'phylum', 'class', '_order', 'family', 'genus', 'species', 'no_records']].copy()
+        #records_g.loc['stateprovince'] = records_g['stateprovince'].apply(lambda x: unicodedata.normalize('NFD', x).encode('ascii', 'ignore').decode("utf-8"))
+        #records_g_insert = records_g[['recgroup_id', 'collex_id', 'locality', 'stateprovince', 'countrycode', 'recordedby', 'kingdom', 'phylum', 'class', '_order', 'family', 'genus', 'species', 'no_records']].copy()
+        records_g_insert = records_g[['recgroup_id', 'collex_id', 'locality', 'stateprovince', 'countrycode', 'species', 'no_records']].copy()
         records_g_insert2 = records_g_insert.values.tolist()
         psycopg2.extras.execute_batch(cur, queries.insert_mg_recordgroups, records_g_insert2)
         #Insert link to records by group
         for index, record in records_g.iterrows():
-            cur.execute(queries.insert_mg_records, {'species': sciname['species'], 'countrycode': country['countrycode'], 'locality': record['locality'], 'stateprovince': record['stateprovince'], 'kingdom': record['kingdom'], 'phylum': record['phylum'], 'class': record['class'], '_order': record['_order'], 'family': record['family'], 'genus': record['genus'], 'recgroup_id': record['recgroup_id']})
+            cur.execute(queries.insert_mg_records, {'species': sciname['species'], 'countrycode': country['countrycode'], 'locality': record['locality'], 'stateprovince': record['stateprovince'], 'recgroup_id': record['recgroup_id']})
+            #cur.execute(queries.insert_mg_records, {'species': sciname['species'], 'countrycode': country['countrycode'], 'locality': record['locality'], 'stateprovince': record['stateprovince'], 'kingdom': record['kingdom'], 'phylum': record['phylum'], 'class': record['class'], '_order': record['_order'], 'family': record['family'], 'genus': record['genus'], 'recgroup_id': record['recgroup_id']})
             logger1.debug(cur.query)
         #GBIF - species
         if 'gbif.species' in settings.layers:
@@ -186,16 +190,16 @@ for sciname in scinames:
         if 'wdpa' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
-                    if state == "":
+                    if state == None:
                         if settings.collex_polygon == True:
                             cur.execute(queries.collexpoly_wdpa_iso.replace('\n', ' ').format(iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, collex_id = settings.collex_id))
                         else:
                             cur.execute(queries.wdpa_iso.replace('\n', ' ').format(iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
                     else:
                         if settings.collex_polygon == True:
-                            cur.execute(queries.collexpoly_wdpa_iso_state.replace('\n', ' ').format(stateprovince = state, iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, collex_id = settings.collex_id))
+                            cur.execute(queries.collexpoly_wdpa_iso_state.replace('\n', ' ').format(stateprovince = state.replace("'", "''"), iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, collex_id = settings.collex_id))
                         else:
-                            cur.execute(queries.wdpa_iso_state.replace('\n', ' ').format(stateprovince = state, iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
+                            cur.execute(queries.wdpa_iso_state.replace('\n', ' ').format(stateprovince = state.replace("'", "''"), iso = pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3))
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of WDPA candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -207,16 +211,16 @@ for sciname in scinames:
         if 'gadm' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
-                    if state == "":
+                    if state == None:
                         if settings.collex_polygon == True:
                             cur.execute(queries.collexpoly_gadm_country.replace('\n', ' ').format(collex_id = settings.collex_id), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3})
                         else:
                             cur.execute(queries.gadm_country.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3})
                     else:
                         if settings.collex_polygon == True:
-                            cur.execute(queries.collexpoly_gadm_country_state.replace('\n', ' ').format(collex_id = settings.collex_id), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state)})
+                            cur.execute(queries.collexpoly_gadm_country_state.replace('\n', ' ').format(collex_id = settings.collex_id), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state.replace("'", "''"))})
                         else:
-                            cur.execute(queries.gadm_country_state.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state)})
+                            cur.execute(queries.gadm_country_state.replace('\n', ' '), {'iso': pycountry.countries.get(alpha_2 = country['countrycode']).alpha_3, 'stateprovince': "%{}%".format(state.replace("'", "''"))})
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of GADM candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -227,16 +231,16 @@ for sciname in scinames:
         #GNIS
         if 'gnis' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_gnis_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.gnis_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_gnis_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.collexpoly_gnis_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.gnis_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.gnis_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of GNIS candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -247,16 +251,16 @@ for sciname in scinames:
         #Historical_Counties
         if 'hist_counties' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_hist_counties_query_nodate.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.hist_counties_query_nodate)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_hist_counties_query_nodate_state.format(collex_id = settings.collex_id), {'state': "%{}%".format(state)})
+                        cur.execute(queries.collexpoly_hist_counties_query_nodate_state.format(collex_id = settings.collex_id), {'state': "%{}%".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.hist_counties_query_nodate_state, {'state': "%{}%".format(state)})
+                        cur.execute(queries.hist_counties_query_nodate_state, {'state': "%{}%".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Hist_Counties candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -267,16 +271,16 @@ for sciname in scinames:
         #Tiger (US Census)
         if 'tiger' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_tiger_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.tiger_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_tiger_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.collexpoly_tiger_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.tiger_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.tiger_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 #cur.execute(queries.tiger_query)
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
@@ -288,16 +292,16 @@ for sciname in scinames:
         #Topos (US)
         if 'topos' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_topos_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.topos_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_topos_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.collexpoly_topos_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.topos_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.topos_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Topos candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -308,16 +312,16 @@ for sciname in scinames:
         #Rivers (US)
         if 'usa_rivers' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_usa_rivers_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.usa_rivers_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_usa_rivers_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.collexpoly_usa_rivers_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.usa_rivers_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usa_rivers_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of river candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -328,16 +332,16 @@ for sciname in scinames:
         #Historical places (US)
         if 'usa_histplaces' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_usa_histplaces_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.usa_histplaces_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_usa_histplaces_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.collexpoly_usa_histplaces_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.usa_histplaces_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usa_histplaces_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of historical places candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -348,16 +352,16 @@ for sciname in scinames:
         #USGS National Structures (US)
         if 'usgs_nat_struct' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.usgs_nat_struct_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.usgs_nat_struct_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.usgs_nat_struct_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usgs_nat_struct_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.usgs_nat_struct_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usgs_nat_struct_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of USGS National Structures candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -368,16 +372,16 @@ for sciname in scinames:
         #usgs_nhd_waterbody
         if 'usgs_nhd_waterbody' in settings.layers and country['countrycode'] == 'US':
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.usgs_nhd_waterbody_query.format(collex_id = settings.collex_id))
                     else:
                         cur.execute(queries.usgs_nhd_waterbody_query)
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.usgs_nhd_waterbody_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usgs_nhd_waterbody_query_state.format(collex_id = settings.collex_id), {'state': "%{}%, United States".format(state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.usgs_nhd_waterbody_query_state, {'state': "%{}%, United States".format(state)})
+                        cur.execute(queries.usgs_nhd_waterbody_query_state, {'state': "%{}%, United States".format(state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of USGS National Hydrography candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -394,16 +398,16 @@ for sciname in scinames:
                     cur.execute(queries.gns_query.replace('\n', ' '))
             else:
                 for state in records_g['stateprovince'].unique():
-                    if state == "":
+                    if state == None:
                         if settings.collex_polygon == True:
                             cur.execute(queries.collexpoly_gns_query_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name})
                         else:
                             cur.execute(queries.gns_query_country.replace('\n', ' '), {'country': pycountry.countries.get(alpha_2 = country['countrycode']).name})
                     else:
                         if settings.collex_polygon == True:
-                            cur.execute(queries.collexpoly_gns_query_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
+                            cur.execute(queries.collexpoly_gns_query_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
                         else:
-                            cur.execute(queries.gns_query_country_state.replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
+                            cur.execute(queries.gns_query_country_state.replace('\n', ' '), {'statecountry': "%{state}%, {country}".format(state = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name)})
             logger1.debug(cur.query)
             allcandidates = pd.DataFrame(cur.fetchall())
             logger1.info("No. of GNS candidates ({}): {}".format(country['countrycode'], len(allcandidates)))
@@ -433,16 +437,16 @@ for sciname in scinames:
         #Geonames
         if 'geonames' in settings.layers and country['countrycode'] != "":
             for state in records_g['stateprovince'].unique():
-                if state == "":
+                if state == None:
                     if settings.collex_polygon == True:
                         cur.execute(queries.collexpoly_geonames.format(collex_id = settings.collex_id).replace('\n', ' '), {'countrycode': country['countrycode']})
                     else:
                         cur.execute(queries.geonames.replace('\n', ' '), {'countrycode': country['countrycode']})
                 else:
                     if settings.collex_polygon == True:
-                        cur.execute(queries.collexpoly_geonames_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state)})
+                        cur.execute(queries.collexpoly_geonames_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state.replace("'", "''"))})
                     else:
-                        cur.execute(queries.geonames_state.replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state)})
+                        cur.execute(queries.geonames_state.replace('\n', ' '), {'countrycode': country['countrycode'], 'stateprovince': "%{stateprovince}%".format(stateprovince = state.replace("'", "''"))})
                 logger1.debug(cur.query)
                 allcandidates = pd.DataFrame(cur.fetchall())
                 logger1.info("No. of Geonames candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -454,16 +458,16 @@ for sciname in scinames:
         if 'wikidata' in settings.layers and country['countrycode'] != "":
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
-                    if state == "":
+                    if state == None:
                         if settings.collex_polygon == True:
                             cur.execute(queries.collexpoly_wikidata_by_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                         else:
                             cur.execute(queries.wikidata_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     else:
                         if settings.collex_polygon == True:
-                            cur.execute(queries.collexpoly_wikidata_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                            cur.execute(queries.collexpoly_wikidata_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                         else:
-                            cur.execute(queries.wikidata_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                            cur.execute(queries.wikidata_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     #Too many candidates if there is no country
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
@@ -476,16 +480,16 @@ for sciname in scinames:
         if 'osm' in settings.layers:
             if pycountry.countries.get(alpha_2 = country['countrycode']) != None:
                 for state in records_g['stateprovince'].unique():
-                    if state == "":
+                    if state == None:
                         if settings.collex_polygon == True:
                             cur.execute(queries.collexpoly_osm_by_country.format(collex_id = settings.collex_id).replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                         else:
                             cur.execute(queries.osm_by_country.replace('\n', ' '), {'country': "%, {country}".format(country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     else:
                         if settings.collex_polygon == True:
-                            cur.execute(queries.collexpoly_osm_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                            cur.execute(queries.collexpoly_osm_by_country_state.format(collex_id = settings.collex_id).replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                         else:
-                            cur.execute(queries.osm_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state, country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
+                            cur.execute(queries.osm_by_country_state.replace('\n', ' '), {'statecountry': "%{stateprovince}%, {country}".format(stateprovince = state.replace("'", "''"), country = pycountry.countries.get(alpha_2 = country['countrycode']).name.replace("'", "''"))})
                     logger1.debug(cur.query)
                     allcandidates = pd.DataFrame(cur.fetchall())
                     logger1.info("No. of OSM candidates ({}, {}): {}".format(state, country['countrycode'], len(allcandidates)))
@@ -517,7 +521,7 @@ for sciname in scinames:
             #allcandidates.swifter.set_npartitions(npartitions = settings.no_cores).apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
             #tqdm.pandas(tqdm(total = allcandidates.shape[0]))
             tqdm.pandas(desc="spatial")
-            allcandidates.progress_apply(lambda row : check_spatial(row['data_source'], sciname['species'], row['candidate_id'], row['feature_id'], cur, logger1), axis = 1)
+            allcandidates.progress_apply(lambda row : check_spatial(row['data_source'], row['candidate_id'], row['feature_id'], sciname['species'], cur, logger1), axis = 1)
         del allcandidates
         # Limit the matches to a polygon for the collection
         # if settings.collex_polygon == True:

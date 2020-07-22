@@ -141,7 +141,7 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
           options = layersControlOptions(collapsed = FALSE)
         )
         
-    }else if (species_map == TRUE & markers == TRUE & candidate == TRUE){
+    }else if (markers == TRUE & candidate == TRUE){
       #Selected candidate and all others in grey
       cand_coords <- SpatialPoints(coords = data.frame(lng = as.numeric(candidate_data$longitude), lat = as.numeric(candidate_data$latitude)), proj4string = CRS("+proj=longlat +datum=WGS84"))
       
@@ -166,8 +166,6 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
                             markerColor = "gray",
                             library = "fa")
       
-      
-      
       uncert_layer <- "Uncertainty buffers<br>of candidates"
       
       api_req <- httr::POST(URLencode(paste0(api_url, "api/geom")),
@@ -187,13 +185,24 @@ leaflet_map <- function(species_map = TRUE, species_data = NULL, markers = FALSE
         
         candidate_popup <- paste0(candidate_data$name, "<br>Located at: ", candidate_data$located_at, "<br>Source: ", candidate_data$data_source, "<br>Uncertainty (m): ", prettyNum(candidate_data$uncertainty_m, big.mark = ",", scientific = FALSE), "<br>Score: ", candidate_data$score)
         
-        res <- res %>% 
-          addGeoJSONv2(spp_geom, popupProperty='Species', color = "#36e265", opacity = 0.8, group = species_geom_layer, fill = FALSE) %>%
-          addLayersControl(
-            baseGroups = c("OSM (default)", "Topo", "ESRI", "ESRI Sat"),
-            overlayGroups = c(species_geom_layer, uncert_layer),
-            options = layersControlOptions(collapsed = FALSE)
-          ) %>%
+        if (species_map == TRUE){
+          res <- res %>% 
+            addGeoJSONv2(spp_geom, popupProperty='Species', color = "#36e265", opacity = 0.8, group = species_geom_layer, fill = FALSE) %>% 
+            addLayersControl(
+              baseGroups = c("OSM (default)", "Topo", "ESRI", "ESRI Sat"),
+              overlayGroups = c(species_geom_layer, uncert_layer),
+              options = layersControlOptions(collapsed = FALSE)
+            )
+        }else{
+          res <- res %>% 
+            addLayersControl(
+              baseGroups = c("OSM (default)", "Topo", "ESRI", "ESRI Sat"),
+              overlayGroups = c(uncert_layer),
+              options = layersControlOptions(collapsed = FALSE)
+            )
+        }
+        
+        res <- res %>%
           addAwesomeMarkers(data = cand_coords, popup = candidate_popup, options = marker_options) %>% 
           fitBounds(min(as.numeric(candidate_data$longitude)) - 0.05, min(as.numeric(candidate_data$latitude)) - 0.05, max(as.numeric(candidate_data$longitude)) + 0.05, max(as.numeric(candidate_data$latitude)) + 0.05) %>% 
           addCircles(lng = candidate_data$longitude, lat = candidate_data$latitude, weight = 1,
