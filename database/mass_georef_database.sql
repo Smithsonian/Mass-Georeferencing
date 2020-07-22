@@ -366,7 +366,7 @@ CREATE TABLE mg_selected_candidates
 (
     mg_selected_candidates_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
     collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    candidate_id uuid REFERENCES mg_candidates(candidate_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    candidate_id uuid,
     recgroup_id uuid REFERENCES mg_recordgroups(recgroup_id) ON DELETE CASCADE ON UPDATE CASCADE,
     data_source text,
     point_or_polygon text DEFAULT 'point',
@@ -461,9 +461,12 @@ CREATE TRIGGER trigger_updated_at_mg_polygons
 DROP TABLE IF EXISTS mg_collex_dl CASCADE;
 CREATE TABLE mg_collex_dl
 (
+    table_id serial,
     collex_id uuid REFERENCES mg_collex(collex_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    dl_file_path text NOT NULL,
+    dl_file_path uuid NOT NULL,
     dl_recipe text NOT NULL,
+    dl_norecords int NOT NULL,
+    ready bool default 'f',
     updated_at timestamp with time zone DEFAULT NOW()
 );
 CREATE INDEX mg_collex_dl_cid_idx ON mg_collex_dl USING BTREE(collex_id);
@@ -471,3 +474,4 @@ CREATE TRIGGER trigger_updated_at_mg_collex_dl
   BEFORE UPDATE ON mg_collex_dl
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
+
