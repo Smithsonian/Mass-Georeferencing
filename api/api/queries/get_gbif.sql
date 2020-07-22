@@ -51,7 +51,9 @@ SELECT
 	r.issue,
 	d.title as dataset,
 	d.organizationname,
-	g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 as located_at
+	g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 as located_at,
+	'gbif' as layer,
+	'point' as geom_type
 FROM
 	record r,
 	gadm2 g,

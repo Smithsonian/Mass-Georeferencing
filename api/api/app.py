@@ -1059,5 +1059,29 @@ def check_cookie():
 
 
 
+#from https://stackoverflow.com/a/23724948
+@app.route('/dl/', defaults={'req_path': ''})
+@app.route('/dl/<path:req_path>')
+def dir_listing(req_path):
+    BASE_DIR = '/var/www/api/dl/'
+
+    # Joining the base and the requested path
+    abs_path = os.path.join(BASE_DIR, req_path)
+
+    # Return 404 if path doesn't exist
+    if not os.path.exists(abs_path):
+        return render_template('wait.html')
+
+    # Check if path is a file and serve
+    if os.path.isfile(abs_path):
+        return send_file(abs_path)
+
+    # Show directory contents
+    files = os.listdir(abs_path)
+    return render_template('dl.html', files=files)
+
+
+
+
 if __name__ == '__main__':
     app.run(debug = True)

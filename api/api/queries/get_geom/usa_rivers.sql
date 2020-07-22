@@ -32,8 +32,8 @@ SELECT
         round(st_x(w.the_geom)::numeric, 5) as xmax,
         round(st_y(w.the_geom)::numeric, 5) as ymin,
         round(st_y(w.the_geom)::numeric, 5) as ymax,
-        'point' as geom_type,
+        'polygon' as geom_type,
         g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 AS located_at,
-        'wikidata' as layer
+        'usa_rivers' as layer
 FROM 
     data w LEFT JOIN gadm2 g ON st_intersects(w.the_geom, g.the_geom)

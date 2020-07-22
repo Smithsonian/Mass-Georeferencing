@@ -177,7 +177,7 @@ WITH score AS (
     m.uid::text as feature_id,
     s.candidate_id,
     s.no_features,
-    round((ST_MinimumBoundingRadius(st_transform(the_geom, 3857))).radius) as uncertainty_m
+    m.uncertainty_m
   FROM 
     score s,                               
     wdpa_polygons m
