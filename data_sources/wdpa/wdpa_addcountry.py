@@ -24,6 +24,7 @@ for id in ids:
     #print(cur.fetchone())
     try:
         cur.execute("UPDATE wdpa_polygons geo SET gadm2 = g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 FROM gadm2 g WHERE ST_INTERSECTS(geo.the_geom, g.the_geom) and geo.gadm2 is null AND geo.wdpaid = %(id)s", {'id': id['wdpaid']})
+        cur.execute("UPDATE wdpa_polygons w SET uncertainty_m = round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) FROM utm_zones u WHERE uncertainty_m is null AND w.wdpaid = %(id)s AND st_intersects(w.the_geom, u.the_geom);", {'id': id['wdpaid']})
     except:
         continue
 
@@ -39,5 +40,6 @@ for id in ids:
     #print(cur.fetchone())
     try:
         cur.execute("UPDATE wdpa_polygons geo SET gadm2 = g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 FROM gadm2 g WHERE ST_INTERSECTS(geo.the_geom, g.the_geom) and geo.gadm2 is null AND geo.wdpaid = %(id)s", {'id': id['wdpaid']})
+        cur.execute("UPDATE wdpa_polygons w SET uncertainty_m = round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius) FROM utm_zones u WHERE uncertainty_m is null AND w.wdpaid = %(id)s AND st_intersects(w.the_geom, u.the_geom);", {'id': id['wdpaid']})
     except:
         continue

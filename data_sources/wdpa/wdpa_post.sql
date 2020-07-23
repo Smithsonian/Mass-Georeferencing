@@ -1,9 +1,9 @@
 
-CREATE INDEX wdpa_points_name_idx ON wdpa_points USING btree(name);
+CREATE INDEX wdpa_points_name_trgm_idx ON wdpa_points USING gin (name gin_trgm_ops);
 CREATE INDEX wdpa_points_wdpaid_idx ON wdpa_points USING btree(wdpaid);
 CREATE INDEX wdpa_points_iso3_idx ON wdpa_points USING btree(iso3);
 
-CREATE INDEX wdpa_polygons_name_idx ON wdpa_polygons USING btree(name);
+CREATE INDEX wdpa_polygons_name_trgm_idx ON wdpa_polygons USING gin (name gin_trgm_ops);
 CREATE INDEX wdpa_polygons_wdpaid_idx ON wdpa_polygons USING btree(wdpaid);
 CREATE INDEX wdpa_polygons_iso3_idx ON wdpa_polygons USING btree(iso3);
 CREATE INDEX wdpa_polygons_the_geom_idx ON wdpa_polygons USING gist (the_geom);
@@ -26,10 +26,7 @@ UPDATE wdpa_points SET the_geom = ST_SETSRID(the_geom, 4326);
 UPDATE wdpa_polygons SET the_geom = ST_MAKEVALID(the_geom) WHERE ST_ISVALID(the_geom) = 'F';
 UPDATE wdpa_polygons SET the_geom = ST_MULTI(ST_SETSRID(the_geom, 4326));
 
---For ILIKE queries
---CREATE EXTENSION pg_trgm;
-CREATE INDEX wdpa_points_name_trgm_idx ON wdpa_points USING gin (name gin_trgm_ops);
-CREATE INDEX wdpa_polygons_name_trgm_idx ON wdpa_polygons USING gin (name gin_trgm_ops);
+
 
 ALTER TABLE wdpa_polygons ADD COLUMN centroid geometry;
 UPDATE wdpa_polygons SET centroid = ST_Centroid(the_geom);
@@ -91,8 +88,8 @@ WITH data AS (
 )
 UPDATE wdpa_points g SET gadm2 = d.loc FROM data d WHERE g.uid = d.uid;
 
-ALTER TABLE wdpa_polygons ADD COLUMN gadm2 text;
-/*WITH data AS (
+/*ALTER TABLE wdpa_polygons ADD COLUMN gadm2 text;
+WITH data AS (
     SELECT 
         w.uid,
         string_agg(g.name_2 || ', ' || g.name_1 || ', ' || g.name_0, '; ') as loc
@@ -112,10 +109,12 @@ CREATE INDEX wdpa_points_gadm2_idx ON wdpa_points USING gin (gadm2 gin_trgm_ops)
 
 
 ALTER TABLE wdpa_polygons ADD COLUMN uncertainty_m float;
-
+/*
 UPDATE wdpa_polygons w SET uncertainty_m = 
     round((ST_MinimumBoundingRadius(st_transform(w.the_geom, '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'))).radius)
 FROM
     utm_zones u
 WHERE 
-    st_intersects(w.the_geom, u.the_geom);
+    uncertainty_m is null AND 
+    wdpaid >= 0 AND wdpaid < 500 AND
+    st_intersects(w.the_geom, u.the_geom);*/
