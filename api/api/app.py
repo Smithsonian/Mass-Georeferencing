@@ -507,6 +507,80 @@ def get_wdpa():
 
 
 
+
+@app.route('/api/historical_int', methods = ['POST'])
+def get_history():
+    """Returns the historical locality that matches the coords and the year."""
+    #Check for valid API Key
+    if apikey() == False:
+        raise InvalidUsage('Unauthorized', status_code = 401)
+    #Check inputs
+    lat = request.form.get('lat')
+    try:
+        lat = float(lat)
+    except:
+        raise InvalidUsage('invalid lat value', status_code = 400)
+    lng = request.form.get('lng')
+    try:
+        lng = float(lng)
+    except:
+        raise InvalidUsage('invalid lng value', status_code = 400)
+    year = request.form.get('year')
+    if year == None:
+        raise InvalidUsage('year missing', status_code = 400)
+    try:
+        year = int(year)
+    except:
+        raise InvalidUsage('invalid year value', status_code = 400)
+    radius = request.form.get('radius')
+    if radius == None:
+        radius = 25000
+    else:
+        try:
+            radius = int(radius)
+        except:
+            raise InvalidUsage('invalid radius value', status_code = 400)
+    layer = request.form.get('layer')
+    if layer == None:
+        raise InvalidUsage('layer missing', status_code = 400)
+    #Connect to the database
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT count(*) FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    valid_layer = cur.fetchone()
+    if valid_layer['count'] == 0:
+        raise InvalidUsage('layer does not exists', status_code = 400)
+    cur.execute("SELECT is_online FROM data_sources WHERE datasource_id = %(layer)s", {'layer': layer})
+    is_online = cur.fetchone()
+    if is_online['is_online'] == False:
+        raise InvalidUsage('layer is offline for maintenance, please try again later', status_code = 503)
+    #Query file
+    with open('queries/hist_intersection_radius.sql') as f:
+        query_template = f.read()
+    #Build query
+    try:
+        cur.execute(query_template, {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius, 'year': year})
+        logging.debug(cur.query)
+    except:
+        vals = {'lat': lat, 'lng': lng, 'layer': layer, 'radius': radius, 'year': year}
+        logging.error(query_template, extra = vals)
+        cur.execute("ROLLBACK")
+        conn.commit()
+    if cur.rowcount > 0:
+        data = cur.fetchall()
+    else:
+        data = None
+    cur.close()
+    conn.close()
+    results = {}
+    results['intersection'] = data
+    return jsonify(results)
+
+
 @app.route('/api/all_names', methods = ['POST'])
 def get_gadm_names():
     """Returns all names from the specified layer."""
@@ -683,7 +757,7 @@ def get_collex_dl():
         raise InvalidUsage('System error', status_code = 500)
     cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     #Build query
-    cur.execute("SELECT * FROM mg_collex_dl WHERE collex_id = '{collex_id}'::UUID".format(collex_id = collex_id))
+    cur.execute("SELECT collex_id, 'https://dpogis.si.edu/dl/' || UPPER(dl_file_path::text) AS dl_file_path, dl_recipe, dl_norecords, ready, updated_at FROM mg_collex_dl WHERE collex_id = '{collex_id}'::UUID".format(collex_id = collex_id))
     logging.debug(cur.query)
     data = cur.fetchall()
     cur.close()

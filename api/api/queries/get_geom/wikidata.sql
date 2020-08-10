@@ -16,4 +16,5 @@ SELECT
         gadm2 AS located_at,
         'wikidata' as layer
 FROM 
-    data
+    wikidata
+WHERE uid = '{uid}'
