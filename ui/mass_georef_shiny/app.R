@@ -65,7 +65,7 @@ ui <- fluidPage(
     tags$script(src = "js.cookie.min.js"),
 
     useShinyjs(),
-    extendShinyjs(text = jsCode),
+    extendShinyjs(text = jsCode, functions = c("shinyjs.getcookie", "shinyjs.setcookie", "shinyjs.rmcookie")),
     
     #title = app_name,
     fluidRow(
