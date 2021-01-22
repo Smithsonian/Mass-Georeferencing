@@ -14,6 +14,7 @@ SELECT
     st_y(the_geom) as ymax,
     'point' as geom_type,
     gadm2 as located_at,
+    ST_SRID(the_geom) as srid,
     'gnis' as layer
 FROM
     gnis

@@ -15,6 +15,7 @@ SELECT
     st_y((ST_Dump(w.the_geom)).geom) as ymax,
     'point' as geom_type,
     stateprovince as located_at,
+    ST_SRID(w.the_geom) as srid,
     'usa_histplaces_points' as layer
 FROM
     usa_histplaces_points w

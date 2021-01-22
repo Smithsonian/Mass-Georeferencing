@@ -1,8 +1,5 @@
 #!/bin/bash
 #
-#Get the OSM extracts from geofabrik.de and refresh the PostGIS database
-# using osm2pgsql (https://wiki.openstreetmap.org/wiki/Osm2pgsql)
-# 
 
 
 #Today's date

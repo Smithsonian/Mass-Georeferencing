@@ -6,6 +6,7 @@ from flask import Flask, jsonify, request
 from flask import Response
 from flask import render_template
 from flask import send_file
+from flask import redirect, request, current_app
 import simplejson as json
 import psycopg2, os, logging, sys, math, locale
 import psycopg2.extras
@@ -13,7 +14,8 @@ from uuid import UUID
 #For parallel
 import multiprocessing as mp
 from functools import partial
-
+from functools import wraps
+import re
 
 
 api_ver = "0.1"
@@ -151,7 +153,7 @@ def routes_list():
     #Adapted from https://stackoverflow.com/a/17250154
     func_list = {}
     for rule in app.url_map.iter_rules():
-        if rule.endpoint != 'static' and rule.rule != '/api/' and rule.rule != '/mdpp/previewimage':
+        if rule.endpoint != 'static' and rule.rule != '/api/' and rule.rule != '/mdpp/previewimage' and rule.rule[0:4] != '/mg/' and rule.rule[0:4] != '/dl/':
             func_list[rule.rule] = app.view_functions[rule.endpoint].__doc__
     return jsonify(func_list)
 
@@ -161,7 +163,7 @@ def routes_list():
 @app.route('/api', methods = ['GET', 'POST'])
 def index():
     """Welcome message and API versions available"""
-    data = json.dumps({'current_version': api_ver, 'reference_url': "https://confluence.si.edu/display/DPOI/Spatial+database+and+API", 'api_title': "OCIO DPO PostGIS API"})
+    data = json.dumps({'current_version': api_ver, 'reference_url': "https://sinet.sharepoint.com/sites/DPO/SitePages/Spatial-Database.aspx", 'api_title': "OCIO DPO PostGIS API"})
     return Response(data, mimetype='application/json')
 
 
@@ -581,6 +583,7 @@ def get_history():
     return jsonify(results)
 
 
+
 @app.route('/api/all_names', methods = ['POST'])
 def get_gadm_names():
     """Returns all names from the specified layer."""
@@ -699,12 +702,18 @@ def get_preview():
     file_id = request.args.get('file_id')
     if file_id == None:
         raise InvalidUsage('file_id missing', status_code = 400)
+    try:
+        file_id = int(file_id)
+    except:
+        raise InvalidUsage('invalid file_id value', status_code = 400)
     filefolder = str(file_id)[0:2]
     filename = "static/mdpp_previews/{}/{}.jpg".format(filefolder, file_id)
     if os.path.isfile(filename) == False:
         filename = "static/na.jpg"
     return send_file(filename, mimetype='image/jpeg')
     
+
+
 
 
 ##################################
@@ -795,6 +804,7 @@ def get_collexinfo():
     return jsonify(data)
 
 
+
 @app.route('/mg/collex_species', methods = ['POST'])
 def get_collex_spp():
     """Get all species available for a collex for MG."""
@@ -822,7 +832,6 @@ def get_collex_spp():
     cur.close()
     conn.close()
     return jsonify(data)
-
 
 
 
@@ -1078,7 +1087,6 @@ def mg_login():
 
 
 
-
 @app.route('/mg/new_cookie', methods = ['POST'])
 def new_cookie():
     """Create cookie."""
@@ -1104,7 +1112,6 @@ def new_cookie():
     cur.close()
     conn.close()
     return jsonify(None)
-
 
 
 
@@ -1138,24 +1145,137 @@ def check_cookie():
 @app.route('/dl/<path:req_path>')
 def dir_listing(req_path):
     BASE_DIR = '/var/www/api/dl/'
-
     # Joining the base and the requested path
     abs_path = os.path.join(BASE_DIR, req_path)
-
     # Return 404 if path doesn't exist
     if not os.path.exists(abs_path):
         return render_template('wait.html')
-
     # Check if path is a file and serve
     if os.path.isfile(abs_path):
         return send_file(abs_path)
-
     # Show directory contents
     files = os.listdir(abs_path)
     return render_template('dl.html', files=files)
 
 
 
+############################
+#OpenRefine
+############################
+# def search(query):
+
+#     # Initialize matches.
+#     matches = []
+
+#     # Search person records for matches.
+#     for r in records:
+#         score = fuzz.token_set_ratio(query, r['label'])
+        
+#         if score > match_threshold:
+#             matches.append({
+#                     "id": r['id'],
+#                     "name": r['label'],
+#                     "score": score,
+#                     "match": query == r['label'],
+#                     "type": [{"id": "/people/person", "name": "Person"}]
+#                     })
+    
+#     print >> sys.stderr, matches
+#     return matches
+
+
+@app.route('/reconcile/locality', methods=['GET', 'POST'])
+def reconcilelocality():
+    # If a single 'query' is provided do a straightforward search.
+    query_string = request.args.get('query')
+    if query_string != None:
+        #Connect to the database
+        try:
+            conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+        except psycopg2.Error as e:
+            logging.error(e)
+            raise InvalidUsage('System error', status_code = 500)
+        cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+        #Check that layer is online
+        cur.execute("SELECT uid as id, name_1 || ', ' || name_0 as name, name_1 <-> '{query_string}' AS score FROM gadm1 WHERE name_1 <-> '{query_string}' < 0.8 ORDER BY score LIMIT 1".format(query_string = query_string))
+        logging.debug(cur.query)
+        data = cur.fetchall()
+        logging.debug(data)
+        cur.close()
+        conn.close()
+    else:
+        data = {}
+    return jsonify(data)
+
+
+#From https://gist.github.com/aisipos/1094140
+def support_jsonp(f):
+    """Wraps JSONified output for JSONP"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        callback = request.args.get('callback', False)
+        if callback:
+            content = str(callback) + '(' + str(f(*args,**kwargs).data) + ')'
+            return current_app.response_class(content, mimetype='application/json')
+        else:
+            return f(*args, **kwargs)
+    return decorated_function
+
+
+
+
+@app.route('/reconcile', methods=['POST', 'GET'])
+@support_jsonp
+def reconcile():
+    # If a single 'query' is provided do a straightforward search.
+    query_string = request.args.get('queries')
+    logging.info(query_string)
+    #res = {}
+    if query_string != None:
+        data = {}
+        query_string = json.loads(request.args.get('queries'))
+        logging.info(len(query_string))
+        #Connect to the database
+        try:
+            conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+        except psycopg2.Error as e:
+            logging.error(e)
+            raise InvalidUsage('System error', status_code = 500)
+        cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+        for item in query_string.items():
+            logging.info(item[1])
+            #for this_query in query_string:
+            cur.execute("SELECT uid as id, name_1 || ', ' || name_0 as name, round(((name_1 <-> '{query_string}') * 100)::numeric, 0) AS score, '[{{\"id\":\"P276\",\"name\":\"locality\"}}]'::json as type, TRUE as match FROM gadm1 WHERE name_1 <-> '{query_string}' < 0.8 ORDER BY score LIMIT 1".format(query_string = item[1]['query']))
+            logging.debug(cur.query)
+            data[item[0]] = {'result': cur.fetchall()}
+            logging.debug(data)
+        cur.close()
+        conn.close()
+    else:
+        # If no query, return service metadata
+        data = {}
+        data['defaultTypes'] = [{'id': "Q35120", 'name': "entity"}]
+        data['identifierSpace'] = 'https://dpogis.si.edu/reconcile/locality'
+        data['schemaSpace'] = 'http://www.wikidata.org/prop/direct/'
+        data1 = {}
+        data1['url'] = "https://dpogis.si.edu/reconcile/locality?query={{id}}"
+        data['view'] = {'url': data1['url']}
+        #data['identifierSpace'] = "http://rdf.freebase.com/ns/user/hangy/viaf"
+        #data['schemaSpace'] = "http://rdf.freebase.com/ns/type.object.id"
+        data['name'] = "DPO-GIS"
+    #res['result'] = data
+    return jsonify(data)
+    #return jsonify(res)
+
+
+
 
 if __name__ == '__main__':
-    app.run(debug = True)
+    app.run(host='0.0.0.0')
+    # from optparse import OptionParser
+    # oparser = OptionParser()
+    # oparser.add_option('-d', '--debug', action='store_true', default=False)
+    # opts, args = oparser.parse_args()
+    # app.debug = opts.debug
+    # app.run(debug = True)
+    

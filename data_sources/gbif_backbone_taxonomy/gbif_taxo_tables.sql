@@ -104,7 +104,7 @@ CREATE TABLE gbif_taxonomy_typesspecimens
 (
     taxonID bigint,
     typeDesignationType text,
-    typeDesignatedBy    text,
+    typeDesignatedBy    text,7
     scientificName  text,
     taxonRank   text,
     source  text
@@ -145,5 +145,52 @@ CREATE TABLE gbif_taxonomy_datasets (
     license text,
     pubDate text
     );
-
 CREATE INDEX gbif_taxonomy_datasets_idx on gbif_taxonomy_datasets USING BTREE(datasetKey);
+
+
+
+--gbif_vernacularnames
+DROP MATERIALIZED VIEW gbif_vernacularnames;
+CREATE MATERIALIZED VIEW gbif_vernacularnames 
+AS
+    SELECT 
+        t.taxonID,
+        t.scientificName,
+        t.scientificNameAuthorship,
+        t.canonicalName,
+        t.genericName,
+        t.specificEpithet,
+        t.infraspecificEpithet,
+        t.taxonRank,
+        t.nameAccordingTo,
+        t.kingdom,
+        t.phylum,
+        t.class,
+        t._order,
+        t.family,
+        t.genus,
+        v.vernacularName,
+        v.language,
+        v.countryCode,
+        v.source
+    FROM 
+        gbif_taxonomy_vernacularname v,
+        gbif_taxonomy_taxon t
+    WHERE 
+        v.taxonID = t.taxonID;
+CREATE INDEX gbif_vernacularnames_taxonid_idx ON gbif_vernacularnames USING BTREE(taxonID);
+CREATE INDEX gbif_vernacularnames_sciname_idx ON gbif_vernacularnames USING BTREE(scientificName);
+CREATE INDEX gbif_vernacularnames_generic_idx ON gbif_vernacularnames USING BTREE(genericName);
+CREATE INDEX gbif_vernacularnames_taxonRank_idx ON gbif_vernacularnames USING BTREE(taxonRank);
+CREATE INDEX gbif_vernacularnames_kingdom_idx ON gbif_vernacularnames USING BTREE(kingdom);
+CREATE INDEX gbif_vernacularnames_phylum_idx ON gbif_vernacularnames USING BTREE(phylum);
+CREATE INDEX gbif_vernacularnames_class_idx ON gbif_vernacularnames USING BTREE(class);
+CREATE INDEX gbif_vernacularnames_order_idx ON gbif_vernacularnames USING BTREE(_order);
+CREATE INDEX gbif_vernacularnames_family_idx ON gbif_vernacularnames USING BTREE(family);
+CREATE INDEX gbif_vernacularnames_genus_idx ON gbif_vernacularnames USING BTREE(genus);
+CREATE INDEX gbif_vernacularnames_vname_idx ON gbif_vernacularnames USING BTREE(vernacularName);
+CREATE INDEX gbif_vernacularnames_lang_idx ON gbif_vernacularnames USING BTREE(language);
+CREATE INDEX gbif_vernacularnames_ccode_idx ON gbif_vernacularnames USING BTREE(countryCode);
+CREATE INDEX gbif_vernacularnames_source_idx ON gbif_vernacularnames USING BTREE(source);
+
+

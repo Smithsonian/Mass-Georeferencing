@@ -30,6 +30,7 @@ SELECT
 	st_ymax(w.the_geom) as ymax,
 	'polygon' as geom_type,
 	gadm2 as located_at,
+	ST_SRID(w.the_geom) as srid,
 	'wdpa_polygons' as layer
 FROM
 	wdpa_polygons w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3),

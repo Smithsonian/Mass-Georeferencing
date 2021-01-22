@@ -88,6 +88,7 @@ SELECT
     st_ymax(d.the_geom) as ymax,
     'polygon' as geom_type,
     gadm2 as located_at,
+    ST_SRID(d.the_geom) as srid,
     'tiger' as layer
 FROM
     data d,

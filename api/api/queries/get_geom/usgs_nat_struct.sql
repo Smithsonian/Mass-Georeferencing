@@ -15,6 +15,7 @@ SELECT
     st_y((ST_Dump(w.the_geom)).geom) as ymax,
     'point' as geom_type,
     gadm2 as located_at,
+    ST_SRID(w.the_geom) as srid,
     'usgs_nat_struct' as layer
 FROM
     usgs_nat_struct w

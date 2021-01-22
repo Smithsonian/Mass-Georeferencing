@@ -241,7 +241,17 @@ CREATE UNLOGGED TABLE gbif_occ(
     lastCrawled text,
     repatriated text,
     relativeOrganismQuantity text,
-    recordedByID text);
+    recordedByID text,
+    identifiedByID text,
+    level0Gid text,
+    level0Name text,
+    level1Gid text,
+    level1Name text,
+    level2Gid text,
+    level2Name text,
+    level3Gid text,
+    level3Name text
+    );
 
 
 

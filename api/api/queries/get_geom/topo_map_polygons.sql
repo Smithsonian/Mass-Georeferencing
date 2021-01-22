@@ -30,6 +30,7 @@ SELECT
 	st_ymax(w.the_geom) as ymax,
 	'polygon' as geom_type,
 	stateprovince as located_at,
+    ST_SRID(w.the_geom) as srid,
 	'topo_map_polygons' as layer
 FROM
 	topo_map_polygons w,

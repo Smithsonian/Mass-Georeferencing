@@ -88,7 +88,8 @@ WITH data AS (
 )
 UPDATE wdpa_points g SET gadm2 = d.loc FROM data d WHERE g.uid = d.uid;
 
-/*ALTER TABLE wdpa_polygons ADD COLUMN gadm2 text;
+ALTER TABLE wdpa_polygons ADD COLUMN gadm2 text;
+/*
 WITH data AS (
     SELECT 
         w.uid,
@@ -103,9 +104,9 @@ WITH data AS (
 )
 UPDATE wdpa_polygons g SET gadm2 = d.loc FROM data d WHERE g.uid = d.uid;*/
 
-CREATE INDEX wdpa_polygons_gadm2_idx ON wdpa_polygons USING gin (gadm2 gin_trgm_ops);
+/*CREATE INDEX wdpa_polygons_gadm2_idx ON wdpa_polygons USING gin (gadm2 gin_trgm_ops);
 CREATE INDEX wdpa_points_gadm2_idx ON wdpa_points USING gin (gadm2 gin_trgm_ops);
-
+*/
 
 
 ALTER TABLE wdpa_polygons ADD COLUMN uncertainty_m float;

@@ -9,6 +9,7 @@ library(dplyr)
 library(sp)
 library(DT)
 library(rgbif)
+#Requires shinyjs 1.1, 2.0 breaks the code
 library(shinyjs)
 library(rmarkdown)
 library(DBI)
@@ -20,7 +21,7 @@ set_config(config(ssl_verifypeer = 0L))
 
 #Settings----
 app_name <- "Mass Georeferencing Tool"
-app_ver <- "0.1.0"
+app_ver <- "0.1.1"
 github_link <- "https://github.com/Smithsonian/Mass-Georeferencing"
 options(stringsAsFactors = FALSE)
 options(encoding = 'UTF-8')
@@ -31,8 +32,6 @@ options(encoding = 'UTF-8')
 #Settings
 source("settings.R")
 source("leafletmap.R")
-
-
 
 
 
@@ -65,7 +64,7 @@ ui <- fluidPage(
     tags$script(src = "js.cookie.min.js"),
 
     useShinyjs(),
-    extendShinyjs(text = jsCode, functions = c("shinyjs.getcookie", "shinyjs.setcookie", "shinyjs.rmcookie")),
+    extendShinyjs(text = jsCode),
     
     #title = app_name,
     fluidRow(
@@ -585,7 +584,7 @@ server <- function(input, output, session) {
     #   HTML("Generating files. Please wait...")
     # })
     output$main <- renderUI({
-      HTML(paste0("<br><p><a href=\"https://dpogis.si.edu/dl/", filespath, "\">Click here to download the files</a>.</p><br><br><p>Generating downloads may take a minute.</p><br><br><p><a href=\"./\">Home</a><hr>"))
+      HTML(paste0("<br><h2><a href=\"https://dpogis.si.edu/dl/", filespath, "\">Click here to download the files</a>.</h2><br><br><p>Generating downloads may take a minute.</p><br><br><p><a href=\"./\">Home</a><hr>"))
     })
     
     output$species <- renderUI({
@@ -1704,6 +1703,10 @@ server <- function(input, output, session) {
     species <- session$userData$species
     collex_id <- session$userData$collex_id
     
+    save_locality <- input$save_locality
+    session$userData$save_locality <- save_locality
+    save_notes <- input$save_notes
+    
     uncert_slider <- session$userData$uncert_slider
     
     req(records)
@@ -1752,12 +1755,9 @@ server <- function(input, output, session) {
     lng_to_save <- format(round(as.numeric(p["lng"]), digits = 5), nsmall = 5)
     data_source <- "Custom location"
     located_at <- located_at$intersection.located_at
-    name <- this_row$locality
-    
-    print(1692)
-    print(this_row)
-    print(1694)
-    print(located_at)
+    # name <- this_row$locality
+    # session$userData$name <- name
+    name <- session$userData$name
     
     showModal(modalDialog(
       size = "l",
@@ -1783,11 +1783,11 @@ server <- function(input, output, session) {
         column(width = 6,
                HTML("<div class=\"panel panel-success\">
         <div class=\"panel-heading\">
-        <h3 class=\"panel-title\">Selected Match</h3>
+        <h3 class=\"panel-title\">Selected Match1</h3>
           </div>
           <div class=\"panel-body\">
               <dl>
-                  <dt>Name</dt><dd>", name, "</dd>
+                  <dt>Name</dt><dd>", save_locality, "</dd>
                   <dt>Located at</dt><dd>", located_at, "</dd>
                   <dt>Locality uncertainty (m)</dt><dd>", prettyNum(uncert_slider, big.mark = ",", scientific = FALSE), "</dd>
                   <dt>Source</dt><dd>", data_source, "</dd>
@@ -1844,10 +1844,15 @@ server <- function(input, output, session) {
   
     
     lat_to_save <- the_feature$latitude
+    session$userData$lat_to_save <- lat_to_save
     lng_to_save <- the_feature$longitude
+    session$userData$lng_to_save <- lng_to_save
     data_source <- the_feature$layer
+    session$userData$data_source <- data_source
     located_at <- the_feature$located_at
-    name <- this_row$locality
+    session$userData$located_at <- located_at
+    
+    name <- session$userData$name
     
     showModal(modalDialog(
       size = "l",
@@ -1905,7 +1910,10 @@ server <- function(input, output, session) {
     species <- session$userData$species
     collex_id <- session$userData$collex_id
     candidate_id <- session$userData$candidate_id
-      
+    name <- session$userData$name
+    
+    save_locality <- session$userData$save_locality
+    
     req(records)
     req(recgrp_id)
     req(species)
@@ -1949,14 +1957,13 @@ server <- function(input, output, session) {
       
       data_source <- 'custom'
       point_or_polygon <- 'point'
-      candidate_id <- "00000000-0000-0000-0000-000000000000"
+      #candidate_id <- "00000000-0000-0000-0000-000000000000"
+      candidate_id <- tolower(uuid::UUIDgenerate())
     }else{
       data_source <- the_feature$layer
       point_or_polygon <- the_feature$geom_type
       
     }
-    
-    
     
     #collex_id
     recgroup_id <- recgrp_id
@@ -1972,6 +1979,8 @@ server <- function(input, output, session) {
       }else{
         uncertainty_m <- uncert
       }
+    }else if (data_source == "custom"){
+      uncert_slider <- session$userData$uncert_slider
     }else{
       uncert <- the_feature$min_bound_radius_m
       if (is.null(uncert)){
@@ -2009,8 +2018,24 @@ server <- function(input, output, session) {
                     server = pg_host,
                     port = 5432)
     
-    insert_query <- paste0("INSERT INTO mg_selected_candidates (collex_id, recgroup_id, candidate_id, data_source, point_or_polygon, uncertainty_m, notes) VALUES ('", collex_id, "', '", recgroup_id, "', '", candidate_id, "', '", data_source, "', '", point_or_polygon, "', ", uncertainty_m, ", ", notes, ")")
-    dbSendQuery(db, insert_query)
+    if (data_source == "custom"){
+      
+      click_lat <- session$userData$click_lat
+      click_lng <- session$userData$click_lng
+      located_at <- session$userData$located_at
+
+      #Insert to custom table
+      insert_query <- paste0("INSERT INTO mg_custom (collex_id, custom_name, custom_decimallatitude, custom_decimallongitude, candidate_id) VALUES ('", collex_id, "', '", save_locality, "', '", click_lat, "', '", click_lng, "', '", candidate_id, "')")
+      n <- dbSendQuery(db, insert_query)
+    }
+    
+    if (uncert_slider == ""){
+      uncert_slider <- "NULL"
+    }
+    
+    
+    insert_query <- paste0("INSERT INTO mg_selected_candidates (collex_id, recgroup_id, candidate_id, data_source, point_or_polygon, uncertainty_m, notes) VALUES ('", collex_id, "', '", recgroup_id, "', '", candidate_id, "', '", data_source, "', '", point_or_polygon, "', ", uncert_slider, ", ", notes, ")")
+    n <- dbSendQuery(db, insert_query)
     
     removeModal()
     output$main <- renderUI({

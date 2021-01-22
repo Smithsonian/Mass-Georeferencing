@@ -24,12 +24,13 @@ SELECT
                 '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs', 4326)
             )::numeric
         , 5) as latitude,
-    st_xmin(w.the_geom_simp) as xmin,
-    st_xmax(w.the_geom_simp) as xmax,
-    st_ymin(w.the_geom_simp) as ymin,
-    st_ymax(w.the_geom_simp) as ymax,
+    st_xmin(w.the_geom) as xmin,
+    st_xmax(w.the_geom) as xmax,
+    st_ymin(w.the_geom) as ymin,
+    st_ymax(w.the_geom) as ymax,
     'polygon' as geom_type,
     name_2 || ', ' || name_1 || ', ' || name_0 as located_at,
+    ST_SRID(w.the_geom) as srid,
     'gadm5' as layer
 FROM
     gadm5 w,

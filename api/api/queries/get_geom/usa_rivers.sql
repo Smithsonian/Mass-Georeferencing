@@ -2,7 +2,8 @@ WITH wiki AS (
     SELECT
         w.the_geom,
         w.uid,
-        w.name
+        w.name,
+        ST_SRID(w.the_geom) as srid
     FROM
         usa_rivers w
     WHERE
@@ -13,6 +14,7 @@ data AS (
         w.the_geom,
         w.uid,
         w.name,
+        w.srid,
         d.description AS type
     FROM
         wiki w LEFT JOIN wikidata_descrip d ON (w.source_id = d.source_id AND d.language = 'en')
@@ -34,6 +36,7 @@ SELECT
         round(st_y(w.the_geom)::numeric, 5) as ymax,
         'polygon' as geom_type,
         g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 AS located_at,
+        w.srid,
         'usa_rivers' as layer
 FROM 
     data w LEFT JOIN gadm2 g ON st_intersects(w.the_geom, g.the_geom)

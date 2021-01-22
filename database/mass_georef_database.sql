@@ -475,3 +475,30 @@ CREATE TRIGGER trigger_updated_at_mg_collex_dl
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
 
+
+
+
+
+
+
+--table with custom clicks on map
+--mg_custom
+DROP TABLE IF EXISTS mg_custom CASCADE;
+CREATE TABLE mg_custom
+(
+    mg_customid uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collex_id uuid NOT NULL,
+    candidate_id UUID NOT NULL,
+    custom_name text NOT NULL,
+    custom_decimallatitude text,
+    custom_decimallongitude text,
+    custom_uncertainty numeric,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX mg_custom_cid_idx ON mg_custom USING BTREE(mg_customid);
+CREATE INDEX mg_custom_caid_idx ON mg_custom USING BTREE(candidate_id);
+CREATE TRIGGER trigger_updated_at_mg_custom
+  BEFORE UPDATE ON mg_custom
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+

@@ -70,3 +70,7 @@ for id in ids:
         continue
 
 
+#Indices
+cur.execute("CREATE INDEX wdpa_polygons_gadm2_idx ON wdpa_polygons USING gin (gadm2 gin_trgm_ops)")
+
+

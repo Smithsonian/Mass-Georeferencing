@@ -11,7 +11,8 @@ WITH data as
 		st_x(the_geom) as xmin,
 		st_x(the_geom) as xmax,
 		st_y(the_geom) as ymin,
-		st_y(the_geom) as ymax
+		st_y(the_geom) as ymax,
+		ST_SRID(the_geom) as srid
 	FROM
 		gbif
 	WHERE
@@ -30,7 +31,8 @@ WITH data as
 		st_x(the_geom) as xmin,
 		st_x(the_geom) as xmax,
 		st_y(the_geom) as ymin,
-		st_y(the_geom) as ymax
+		st_y(the_geom) as ymax,
+        ST_SRID(the_geom) as srid
 	FROM
 		gbif
 	WHERE
@@ -55,6 +57,7 @@ SELECT
 	d.ymax,
 	'point' as geom_type,
 	g.name_2 ||  ', ' || g.name_1 ||  ', ' || g.name_0 as located_at,
+	srid,
 	'gbif' as layer
 FROM
 	data d LEFT JOIN gadm2 g ON 

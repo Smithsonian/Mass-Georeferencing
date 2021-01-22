@@ -12,16 +12,10 @@
 #Today's date
 script_date=$(date +'%Y-%m-%d')
 
-#remove unused files
-# rm meta.xml
-# rm *.zip
-# rm verbatim.txt
-# rm citations.txt
-# rm multimedia.txt
-# rm rights.txt
+unzip 000.zip -x occurrence.txt meta.xml verbatim.txt citations.txt multimedia.txt rights.txt
 
 #unzip file and break into pieces via pipes
-unzip -p 000.zip occurrence.txt | split -l 5 - gbifdwc
+unzip -p 000.zip occurrence.txt | split -l 500000 - gbifdwc
 
 #Remove first line (header) in the first file
 sed -i '1d' gbifdwcaa

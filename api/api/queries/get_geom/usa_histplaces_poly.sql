@@ -30,6 +30,7 @@ SELECT
 	st_ymax(w.the_geom) as ymax,
 	'polygon' as geom_type,
 	stateprovince as located_at,
+    ST_SRID(w.the_geom) as srid,
 	'usa_histplaces_poly' as layer
 FROM
 	usa_histplaces_poly w,

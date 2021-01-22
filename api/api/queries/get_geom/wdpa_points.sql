@@ -15,6 +15,7 @@ SELECT
     st_y((ST_Dump(w.the_geom)).geom) as ymax,
     'point' as geom_type,
     gadm2 as located_at,
+    ST_SRID(w.the_geom) as srid,
     'wdpa_points' as layer
 FROM
     wdpa_points w LEFT JOIN countries_iso c ON (w.iso3 = c.iso3)

@@ -14,6 +14,7 @@ SELECT
         round(st_y(the_geom)::numeric, 5) as ymax,
         'point' as geom_type,
         gadm2 AS located_at,
+        ST_SRID(the_geom) as srid,
         'wikidata' as layer
 FROM 
     wikidata

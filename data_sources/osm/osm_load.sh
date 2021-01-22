@@ -8,6 +8,15 @@
 #
 
 
+wget https://download.geofabrik.de/africa-latest.osm.pbf
+wget https://download.geofabrik.de/antarctica-latest.osm.pbf
+wget https://download.geofabrik.de/asia-latest.osm.pbf
+wget https://download.geofabrik.de/australia-oceania-latest.osm.pbf
+wget https://download.geofabrik.de/central-america-latest.osm.pbf
+wget https://download.geofabrik.de/europe-latest.osm.pbf
+wget https://download.geofabrik.de/north-america-latest.osm.pbf
+wget https://download.geofabrik.de/south-america-latest.osm.pbf
+
 
 #Columns to get the type
 cols=(amenity barrier bridge building embankment harbour highway historic landuse leisure lock man_made military motorcar natural office place public_transport railway religion service shop sport surface toll tourism tunnel water waterway wetland wood)

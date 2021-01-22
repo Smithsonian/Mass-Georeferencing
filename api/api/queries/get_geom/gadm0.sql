@@ -30,6 +30,7 @@ SELECT
     st_ymax(w.the_geom_simp) as ymax,
     'polygon' as geom_type,
     name_0 as located_at,
+    ST_SRID(w.the_geom) as srid,
     'gadm0' as layer
 FROM
     gadm0 w,
