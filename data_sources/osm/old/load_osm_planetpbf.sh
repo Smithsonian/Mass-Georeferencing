@@ -31,7 +31,7 @@ wget -a osm_$script_date.log https://ftp.osuosl.org/pub/openstreetmap/pbf/planet
 echo ""
 echo "Loading planet..."
 echo ""
-osm2pgsql --latlong --slim --username gisuser --host localhost --database osm --multi-geometry --verbose planet-latest.osm.pbf >> osm_$script_date.log
+osm2pgsql --latlong --slim --flat-nodes --unlogged --drop -C 12000 --number-processes 8 --flat-nodes /mnt/data3tb/temp/osm/nodes.cache --username gisuser --host localhost --database osm --multi-geometry --verbose planet-latest.osm.pbf >> osm_$script_date.log
 
 
 #Set back online and update date

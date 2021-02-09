@@ -9,7 +9,7 @@
 # https://dpo.si.edu
 #
 #Import modules
-import os, logging, sys, locale, uuid, subprocess
+import os, logging, sys, locale, uuid, subprocess, math
 import pandas as pd
 from time import localtime, strftime
 from pyfiglet import Figlet
@@ -84,10 +84,18 @@ cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
 cur.execute("SELECT uid, name_0 from gadm0")
 logger1.debug(cur.query)
 countries = cur.fetchall()
+
+#Get no of features in OSM table
+cur.execute("SELECT count(*) as no_feats FROM osm")
+logger1.debug(cur.query)
+osm_count = cur.fetchone()
+limit_val = 100000
+osm_limit = math.ceil(osm_count['no_feats']/limit_val)
+
 for country in countries:
     logger1.info("country: {}".format(country['name_0']))
-    for i in range(15000):
-        ii = i * 100000
+    for i in range(osm_limit):
+        offset_val = i * limit_val
         #Get records for the country
         cur.execute("""WITH records as (
                                 SELECT 
@@ -96,23 +104,23 @@ for country in countries:
                                 FROM 
                                     osm
                                 ORDER BY uid
-                                    LIMIT 1000
-                                    offset {i}
+                                    LIMIT {limit_val}
+                                    offset {offset_val}
                             ),
-
                             data AS (
                                 SELECT 
                                     w.uid,
-                                    g.name_0 as loc
+                                    g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 as gadm2,
+                                    g.name_0 as country
                                 FROM 
                                     records w,
-                                    gadm0 g
+                                    gadm2 g
                                 WHERE 
                                     ST_INTERSECTS(w.the_geom, g.the_geom) AND
                                     g.name_0 = '{country}'
                                     )
-                            UPDATE osm g SET country = d.loc FROM data d WHERE g.uid = d.uid;
-""".format(i = ii, country = country['uid']))
+                            UPDATE osm g SET country = d.country, gadm2 = d.gadm2 FROM data d WHERE g.uid = d.uid;
+""".format(limit_val = limit_val, offset_val = offset_val, country = country['uid']))
         logger1.info(cur.query)
 
 
