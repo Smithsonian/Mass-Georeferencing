@@ -13,14 +13,14 @@
 script_date=$(date +'%Y-%m-%d')
 
 
-wget https://download.geofabrik.de/africa-latest.osm.pbf
-#wget https://download.geofabrik.de/antarctica-latest.osm.pbf
-wget https://download.geofabrik.de/asia-latest.osm.pbf
-wget https://download.geofabrik.de/australia-oceania-latest.osm.pbf
-wget https://download.geofabrik.de/central-america-latest.osm.pbf
-wget https://download.geofabrik.de/europe-latest.osm.pbf
+# wget https://download.geofabrik.de/africa-latest.osm.pbf
+# #wget https://download.geofabrik.de/antarctica-latest.osm.pbf
+# wget https://download.geofabrik.de/asia-latest.osm.pbf
+# wget https://download.geofabrik.de/australia-oceania-latest.osm.pbf
+# wget https://download.geofabrik.de/central-america-latest.osm.pbf
+# wget https://download.geofabrik.de/europe-latest.osm.pbf
 wget https://download.geofabrik.de/north-america-latest.osm.pbf
-wget https://download.geofabrik.de/south-america-latest.osm.pbf
+# wget https://download.geofabrik.de/south-america-latest.osm.pbf
 
 
 #Columns to get the type
@@ -40,49 +40,16 @@ for j in *.pbf; do
 
     #Execute for each column
     for i in ${!cols[@]}; do
+        #run separate script
         bash process_col.sh ${!cols[@]} $j &
-        # echo "Working on column ${cols[$i]}..."
-        # psql -U gisuser -h localhost osm -c "CREATE INDEX osmplanet_${cols[$i]}_idx ON planet_osm_polygon USING BTREE(\"${cols[$i]}\") WHERE \"${cols[$i]}\" IS NOT NULL;"
-        # psql -U gisuser -h localhost osm -c "with data as ( 
-        #                                         select 
-        #                                             osm_id as osm_id, 
-        #                                             name,
-        #                                             \"${cols[$i]}\",
-        #                                             way
-        #                                         from 
-        #                                             planet_osm_polygon 
-        #                                         where 
-        #                                             \"${cols[$i]}\" IS NOT NULL AND
-        #                                             name IS NOT NULL
-        #                                     )
-        #                                 INSERT INTO osm 
-        #                                     (source_id, name, type, attributes, centroid, the_geom, the_geom_webmercator, gadm2, country, data_source) 
-        #                                     select 
-        #                                         d.osm_id::text, 
-        #                                         d.name, 
-        #                                         coalesce(replace(\"${cols[$i]}\", 'yes', NULL), \"${cols[$i]}\"),
-        #                                         tags::hstore,
-        #                                         st_centroid(st_multi(way)),
-        #                                         st_makevalid(st_multi(way)) as the_geom,
-        #                                         st_transform(st_makevalid(st_multi(way)), 3857) as the_geom_webmercator,
-        #                                         g.name_2 || ', ' || g.name_1 || ', ' || g.name_0 as loc,
-        #                                         g.name_0 as name_0,
-        #                                         '$j'
-        #                                     from 
-        #                                         data d LEFT JOIN 
-        #                                             planet_osm_ways r ON 
-        #                                             (d.osm_id = r.id)
-        #                                         LEFT JOIN 
-        #                                             gadm2 g ON 
-        #                                             ST_INTERSECTS(st_makevalid(st_multi(way)), g.the_geom_simp);"
-        # psql -U gisuser -h localhost osm -c "DROP INDEX osmplanet_${cols[$i]}_idx;"
     done
     #wait for all columns to be done
     wait
 mv $j done/
 done
 
-
+#Delete temp cache file
+rm /mnt/fastdisk/tmp/mycache.bin
 
 #Cleanup
 psql -U gisuser -h localhost osm -c "DROP TABLE IF EXISTS planet_osm_line CASCADE;"
