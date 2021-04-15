@@ -1,5 +1,5 @@
 #!/bin/bash
-# 
+#
 # Load the Atlas of Historical County Boundaries data
 #
 # v 2020-06-16
@@ -28,5 +28,5 @@ psql -U gisuser -h localhost gis -c "
                 CREATE INDEX hist_counties_the_geom_idx ON hist_counties USING gist (the_geom);"
 
 
-psql -U gisuser -h localhost gis -c "UPDATE data_sources SET is_online = 't', source_date = '$script_date', no_features = w.no_feats FROM (select count(*) as no_feats from hist_counties) w WHERE datasource_id = 'hist_counties';"
 
+psql -U gisuser -h localhost gis -c "UPDATE data_sources SET is_online = 't', source_date = '$script_date', no_features = w.no_feats FROM (select count(*) as no_feats from hist_counties) w WHERE datasource_id = 'hist_counties';"

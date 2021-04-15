@@ -35,19 +35,21 @@
           <td><small>{{ source.source_notes }}</small></td>
           <td class="text-nowrap">{{ source.date_f }}</td>
           <td class="text-nowrap">{{ source.source_refresh }}</td>
-        </tr>      
+        </tr>
     {% endfor %}
+    {% if summary != None %}
        <tr>
           <td class="table-success"><strong class = "float-right">Total features in the database: </strong></td>
           <td class="table-success"><strong>{{ summary }}</strong></td>
           <td class="table-light">&nbsp;</td>
           <td class="table-light">&nbsp;</td>
           <td class="table-light">&nbsp;</td>
-        </tr> 
+        </tr>
+    {% endif %}
   </tbody>
 </table>
 
-<p><a href="https://confluence.si.edu/display/DPOI/Spatial+database+and+API">More info</a></p>
+<p><a href="https://sinet.sharepoint.com/sites/DPO/SitePages/Spatial-Database.aspx">More info</a></p>
 
 </div>
 

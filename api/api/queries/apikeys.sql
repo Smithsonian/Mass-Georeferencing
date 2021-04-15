@@ -2,7 +2,7 @@ WITH keys AS (
       SELECT
         key,
         rate_limit,
-        admin_user        
+        admin_user
       FROM
         apikeys
       where
@@ -23,6 +23,6 @@ WITH keys AS (
     SELECT
       k.rate_limit,
       k.admin_user,
-      u.no_queries
+      COALESCE(u.no_queries, 0) AS no_queries
     FROM
       keys k LEFT JOIN usage u ON (k.key = u.key)

@@ -1,11 +1,11 @@
 WITH data1 AS
-    (   
-        SELECT 
+    (
+        SELECT
             st_transform(st_setsrid(
                 st_point(
                     %(lng)s, %(lat)s
-                    ), 
-                4326), 
+                    ),
+                4326),
                 '+proj=utm +zone=' || u.zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs') as the_geom,
             u.zone as utm_zone
         FROM
@@ -16,11 +16,10 @@ WITH data1 AS
 
 data AS
     (
-        SELECT 
+        SELECT
             st_buffer(the_geom, %(radius)s) as the_geom_buffer,
             utm_zone,
-            %(year)s || '-01-01' as min_date,
-            %(year)s || '-12-31' as max_date
+            %(year)s as input_date
         FROM
             data1
     ),
@@ -28,7 +27,7 @@ data AS
 results AS (
         SELECT
             h.uid,
-            h.full_name, 
+            h.full_name,
             h.state_terr as stateprovince,
             h.start_date::date,
             h.end_date::date,
@@ -39,16 +38,15 @@ results AS (
             data d,
             data1 d1,
             hist_counties h
-        WHERE 
+        WHERE
             %(layer)s = 'hist_counties' AND
             st_intersects(st_transform(h.the_geom, '+proj=utm +zone=' || d.utm_zone || ' +ellps=WGS84 +datum=WGS84 +units=m +no_defs'), d.the_geom_buffer) AND
-            h.start_date <= d.min_date::date AND
-            h.end_date >= d.max_date::date
+            extract(year from h.start_date) <= input_date AND
+            extract(year from h.end_date) >= input_date
     )
 
-SELECT 
-    * 
+SELECT
+    *
 FROM
     results
-ORDER BY distance_m DESC
-LIMIT 1
+ORDER BY distance_m ASC
