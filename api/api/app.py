@@ -216,6 +216,46 @@ def get_sources_html():
 
 
 
+
+@app.route('/details', methods = ['GET', 'POST'])
+def get_details_html():
+    """Get the details of the row from a data source in HTML format."""
+    #API Key not needed
+    try:
+        conn = psycopg2.connect(host = settings.host, database = settings.database, user = settings.user, password = settings.password)
+    except psycopg2.Error as e:
+        logging.error(e)
+        raise InvalidUsage('System error', status_code = 500)
+    cur = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
+    #Check inputs
+    datasource_id = request.values.get('datasource_id')
+    speciessource = request.values.get('speciessource')
+    if datasource_id == None and speciessource == None:
+        raise InvalidUsage('datasource_id and speciessource missing', status_code = 400)
+    uid = request.values.get('id')
+    if uid == None:
+        raise InvalidUsage('id missing', status_code = 400)
+    if datasource_id != None:
+        logging.debug(datasource_id)
+        cur.execute("SELECT * FROM data_sources WHERE datasource_id = %(datasource_id)s", {'datasource_id': datasource_id})
+        logging.debug(cur.query)
+        datasource = cur.fetchone()
+        cur.execute("SELECT %(datasource)s as data_source, * FROM {} WHERE uid = %(uid)s".format(datasource_id), {'uid': uid, 'datasource': "{} ({})".format(datasource['source_title'], datasource['source_url'])})
+        data = cur.fetchone()
+    elif speciessource != None:
+        logging.debug(speciessource)
+        if speciessource == "gbiftaxonomy":
+            cur.execute("SELECT * FROM gbif_vernacularnames WHERE taxonID = %(uid)s", {'uid': uid})
+            logging.debug(cur.query)
+            data = cur.fetchone()
+    logging.info(cur.query)
+    cur.close()
+    conn.close()
+    return render_template('details.html', data = data)
+
+
+
+
 @app.route('/api/geom', methods = ['POST'])
 def get_geom():
     """Returns the geometry of a feature."""

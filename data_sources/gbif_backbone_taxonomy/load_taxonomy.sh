@@ -52,6 +52,11 @@ psql -U gisuser -h localhost gis -c "\copy gbif_taxonomy_vernacularname FROM 'Ve
 
 
 
+psql -U gisuser -h localhost gis < vernacular.sql
+
+
+
+
 #Extract dataset info
 cp gbifdatasets.py dataset/
 cd dataset/
@@ -62,3 +67,5 @@ psql -U gisuser -h localhost gis -c "\COPY gbif_taxonomy_datasets FROM 'gbifdata
 rm gbifdatasets.csv
 rm -r dataset
 
+
+psql -U gisuser -h localhost gis < gbif_taxo_tables_indices.sql

@@ -151,43 +151,52 @@ CREATE INDEX gadm5_tgeomw_idx ON gadm5 USING GIST(the_geom_webmercator);
 
 
 --Remove polygons with only numbers in name
-delete from gadm1 where uid in 
+delete from gadm1 where uid in
     (select uid from gadm1  where name_1 ~ '^[0-9\.]+$');
-delete from gadm2 where uid in 
+delete from gadm2 where uid in
     (select uid from gadm2  where name_2 ~ '^[0-9\.]+$');
-delete from gadm3 where uid in 
+delete from gadm3 where uid in
     (select uid from gadm3  where name_3 ~ '^[0-9\.]+$');
-delete from gadm4 where uid in 
+delete from gadm4 where uid in
     (select uid from gadm4  where name_4 ~ '^[0-9\.]+$');
-delete from gadm5 where uid in 
+delete from gadm5 where uid in
     (select uid from gadm5  where name_5 ~ '^[0-9\.]+$');
 
 
 
 --Remove where name is too short (<4 chars)
-delete from gadm1 where uid in 
+delete from gadm1 where uid in
     (select uid from gadm1 where CHAR_LENGTH(name_1) < 4);
-delete from gadm2 where uid in 
+delete from gadm2 where uid in
     (select uid from gadm2 where CHAR_LENGTH(name_2) < 4);
-delete from gadm3 where uid in 
+delete from gadm3 where uid in
     (select uid from gadm3 where CHAR_LENGTH(name_3) < 4);
-delete from gadm4 where uid in 
+delete from gadm4 where uid in
     (select uid from gadm4 where CHAR_LENGTH(name_4) < 4);
-delete from gadm5 where uid in 
+delete from gadm5 where uid in
     (select uid from gadm5 where CHAR_LENGTH(name_5) < 4);
 
 
 
 
 --view
-CREATE VIEW gadm AS
+DROP VIEW gadm;
+CREATE MATERIALIZED VIEW gadm AS
     SELECT
         name_0 as name,
+        name_0 as name_0,
+        null as name_1,
+        null as name_2,
+        null as name_3,
+        null as name_4,
+        null as name_5,
         'gadm0' as layer,
         'country' as type,
         uid,
         null AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm0
 
@@ -195,11 +204,19 @@ CREATE VIEW gadm AS
 
     SELECT
         name_1 as name,
+        name_0,
+        name_1 as name_1,
+        null as name_2,
+        null as name_3,
+        null as name_4,
+        null as name_5,
         'gadm1' as layer,
         engtype_1 as type,
         uid,
         name_0 AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm1
 
@@ -207,11 +224,19 @@ CREATE VIEW gadm AS
 
     SELECT
         name_2 as name,
+        name_0 as name_0,
+        name_1 as name_1,
+        name_2 as name_2,
+        null as name_3,
+        null as name_4,
+        null as name_5,
         'gadm2' as layer,
         engtype_2 as type,
         uid,
         name_1 || ', ' || name_0 AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm2
 
@@ -219,11 +244,19 @@ CREATE VIEW gadm AS
 
     SELECT
         name_3 as name,
+        name_0 as name_0,
+        name_1 as name_1,
+        name_2 as name_2,
+        name_3 as name_3,
+        null as name_4,
+        null as name_5,
         'gadm3' as layer,
         engtype_3 as type,
         uid,
         name_2 || ', ' || name_1 || ', ' || name_0 AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm3
 
@@ -231,11 +264,19 @@ CREATE VIEW gadm AS
 
     SELECT
         name_4 as name,
+        name_0 as name_0,
+        name_1 as name_1,
+        name_2 as name_2,
+        name_3 as name_3,
+        name_4 as name_4,
+        null as name_5,
         'gadm4' as layer,
         engtype_4 as type,
         uid,
         name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0 AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm4
 
@@ -243,11 +284,30 @@ CREATE VIEW gadm AS
 
     SELECT
         name_5 as name,
+        name_0 as name_0,
+        name_1 as name_1,
+        name_2 as name_2,
+        name_3 as name_3,
+        name_4 as name_4,
+        name_5 as name_5,
         'gadm5' as layer,
         engtype_5 as type,
         uid,
         name_4 || ', ' || name_3 || ', ' || name_2 || ', ' || name_1 || ', ' || name_0 AS located_at,
-        the_geom
+        the_geom,
+        the_geom_simp,
+        the_geom_webmercator
     FROM
         gadm5
 ;
+
+CREATE INDEX gadm_name0_trgm_idx ON gadm USING gin (name_0 gin_trgm_ops);
+CREATE INDEX gadm_name1_trgm_idx ON gadm USING gin (name_1 gin_trgm_ops);
+CREATE INDEX gadm_name2_trgm_idx ON gadm USING gin (name_2 gin_trgm_ops);
+CREATE INDEX gadm_name3_trgm_idx ON gadm USING gin (name_3 gin_trgm_ops);
+CREATE INDEX gadm_name4_trgm_idx ON gadm USING gin (name_4 gin_trgm_ops);
+CREATE INDEX gadm_name5_trgm_idx ON gadm USING gin (name_5 gin_trgm_ops);
+CREATE INDEX gadm_loc_trgm_idx ON gadm USING gin (located_at gin_trgm_ops);
+CREATE INDEX gadm_the_geom_idx ON gadm USING gist (the_geom);
+CREATE INDEX gadm_the_geom_s_idx ON gadm USING gist (the_geom_simp);
+CREATE INDEX gadm_the_geom_w_idx ON gadm USING gist (the_geom_webmercator);
