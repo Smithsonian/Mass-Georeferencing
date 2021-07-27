@@ -1,0 +1,7 @@
+#Database
+pg_user <- ""
+pg_pass <- ""
+pg_host <- ""
+pg_db <- ""
+
+server_path <- ""

@@ -12,33 +12,26 @@
 </head>
 <body>
 
-<div class="container">
+<p class="container">
+<small>
+    <p>Preferred label: {{pref_label}}</p>
 
-<!-- <h3>DPO Spatial API - Data Row Details</h3> -->
+    {% if note != "" %}
+        <p>Notes: {{note}}</p>
+    {% endif %}
 
-{% for k, val in data.items() %}
-{% if k == "uid" %}
-      <p><strong>{{k}}: {{val}}</strong></p>
-      {% endif %}
-    {% endfor %}
-<p>
-{% for k, val in data.items() %}
-{% if k != "the_geom" %}
-{% if k != "the_geom_simp" %}
-{% if k != "centroid" %}
-{% if k != "uid" %}
-{% if k != "the_geom_webmercator" %}
-     <strong>{{k}}:</strong> {{val}}<br>
-      {% endif %}
-        {% endif %}
-        {% endif %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-</p>
+    {% if alt_labels != "" %}
+        <p>Alt labels:
 
-<br><br><p><a href="https://sinet.sharepoint.com/sites/DPO/SitePages/Spatial-Database.aspx">System info</a></p>
+                {% for label in alt_labels %}
+                    {{label}};
+                {% endfor %}
 
+        </p>
+    {% endif %}
+
+    <p><small>AAT ID: {{id}}</small></p>
+</small>
 </div>
 
 <!-- JavaScript -->
