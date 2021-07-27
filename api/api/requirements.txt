@@ -1,8 +1,0 @@
-Flask>=2.0.0
-requests
-SPARQLWrapper
-numpy
-skosprovider_getty
-psycopg2
-simplejson
-Pillow
