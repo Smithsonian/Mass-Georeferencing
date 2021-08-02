@@ -11,6 +11,17 @@ CREATE INDEX bhl_creator_titleid_idx ON bhl_creator USING BTREE(titleid);
 CREATE INDEX bhl_creator_creatorid_idx ON bhl_creator USING BTREE(creatorid);
 
 
+--bhl_creatoridentifier
+CREATE TABLE bhl_creatoridentifier (
+    creatorid text,
+    identifiername text,
+    identifiervalue text,
+    creationdate text
+);
+\COPY bhl_creatoridentifier FROM 'Data/creatoridentifier.txt' DELIMITER E'\t';
+CREATE INDEX bhl_creatoridentifier_creatorid_idx ON bhl_creatoridentifier USING BTREE(creatorid);
+
+
 --bhl_doi
 CREATE TABLE bhl_doi (
     entitytype text,
@@ -24,7 +35,7 @@ CREATE INDEX bhl_doi_entityid_idx ON bhl_doi USING BTREE(entityid);
 
 --bhl_item
 CREATE TABLE bhl_item (
-    ﻿itemid text,
+    itemid text,
     titleid text,
     thumbnailpageid text,
     barcode text,
@@ -42,7 +53,7 @@ CREATE TABLE bhl_item (
     creationdate text
 );
 \COPY bhl_item FROM 'Data/item.txt';
-CREATE INDEX bhl_item_itemid_idx ON bhl_item USING BTREE(﻿itemid);
+CREATE INDEX bhl_item_itemid_idx ON bhl_item USING BTREE(itemid);
 CREATE INDEX bhl_item_titleid_idx ON bhl_item USING BTREE(titleid);
 CREATE INDEX bhl_item_thumbnailpageid_idx ON bhl_item USING BTREE(thumbnailpageid);
 
@@ -67,19 +78,19 @@ CREATE INDEX bhl_page_itemid_idx ON bhl_page USING BTREE(itemid);
 
 --bhl_pagename
 CREATE TABLE bhl_pagename (
-    ﻿namebankid text,
+    namebankid text,
     nameconfirmed text,
     pageid text,
     creationdate text
 );
 \COPY bhl_pagename FROM 'Data/pagename.txt';
-CREATE INDEX bhl_pagename_namebankid_idx ON bhl_pagename USING BTREE(﻿namebankid);
+CREATE INDEX bhl_pagename_namebankid_idx ON bhl_pagename USING BTREE(namebankid);
 CREATE INDEX bhl_pagename_pageid_idx ON bhl_pagename USING BTREE(pageid);
 
 
 --bhl_part
 CREATE TABLE bhl_part (
-    ﻿partid text,
+    partid text,
     itemid text,
     contributorname text,
     sequenceorder text,
@@ -103,20 +114,33 @@ CREATE TABLE bhl_part (
     licenseurl text
 );
 \COPY bhl_part FROM 'Data/part.txt';
-CREATE INDEX bhl_part_partid_idx ON bhl_part USING BTREE(﻿partid);
+CREATE INDEX bhl_part_partid_idx ON bhl_part USING BTREE(partid);
 CREATE INDEX bhl_part_itemid_idx ON bhl_part USING BTREE(itemid);
 
 
+
+??
 --bhl_partcreator
 CREATE TABLE bhl_partcreator (
-    ﻿partid text,
+    partid text,
     creatorid text,
     creatorname text,
     creationdate text
 );
-\COPY bhl_partcreator FROM 'partcreator.txt';
-CREATE INDEX bhl_partcreator_partid_idx ON bhl_partcreator USING BTREE(﻿partid);
+\COPY bhl_partcreator FROM 'Data/partcreator.txt';
+CREATE INDEX bhl_partcreator_partid_idx ON bhl_partcreator USING BTREE(partid);
 CREATE INDEX bhl_partcreator_creatorid_idx ON bhl_partcreator USING BTREE(creatorid);
+
+
+--bhl_partidentifier
+CREATE TABLE bhl_partidentifier (
+    partid text,
+    identifiername text,
+    identifiervalue text,
+    creationdate text
+);
+\COPY bhl_partidentifier FROM 'Data/partidentifier.txt';
+CREATE INDEX bhl_partidentifier_partid_idx ON bhl_partidentifier USING BTREE(partid);
 
 
 --bhl_subject
