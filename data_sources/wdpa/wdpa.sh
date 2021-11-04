@@ -15,16 +15,16 @@ mkdir 0
 mkdir 1
 mkdir 2
 
-mv WDPA_WDOECM_wdpa_shp0.zip 0/
-mv WDPA_WDOECM_wdpa_shp1.zip 1/
-mv WDPA_WDOECM_wdpa_shp2.zip 2/
+mv WDPA_Oct2021_Public_shp_0.zip 0/
+mv WDPA_Oct2021_Public_shp_1.zip 1/
+mv WDPA_Oct2021_Public_shp_2.zip 2/
 
 cd 0
-unzip WDPA_WDOECM_wdpa_shp0.zip
+unzip WDPA_Oct2021_Public_shp_0.zip
 cd ../1
-unzip WDPA_WDOECM_wdpa_shp1.zip
+unzip WDPA_Oct2021_Public_shp_1.zip
 cd ../2
-unzip WDPA_WDOECM_wdpa_shp2.zip
+unzip WDPA_Oct2021_Public_shp_2.zip
 cd ..
 
 

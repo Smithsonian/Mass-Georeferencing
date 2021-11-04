@@ -250,7 +250,8 @@ CREATE UNLOGGED TABLE gbif_occ(
     level2Gid text,
     level2Name text,
     level3Gid text,
-    level3Name text
+    level3Name text,
+    iucnRedListCategory text
     );
 
 

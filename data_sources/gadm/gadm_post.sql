@@ -311,3 +311,89 @@ CREATE INDEX gadm_loc_trgm_idx ON gadm USING gin (located_at gin_trgm_ops);
 CREATE INDEX gadm_the_geom_idx ON gadm USING gist (the_geom);
 CREATE INDEX gadm_the_geom_s_idx ON gadm USING gist (the_geom_simp);
 CREATE INDEX gadm_the_geom_w_idx ON gadm USING gist (the_geom_webmercator);
+
+
+
+--alt names
+DROP TABLE IF EXISTS gadm_alt_names CASCADE;
+CREATE TABLE gadm_alt_names (
+    uid uuid,
+    alt_name text
+);
+CREATE INDEX gadm_alt_names_trgm_idx ON gadm_alt_names USING gin (alt_name gin_trgm_ops);
+
+--gadm1
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(varname_1, '|')) as name from gadm1 where varname_1 is not null
+    );
+
+--gadm2
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(varname_2, '|')) as name from gadm2 where varname_2 is not null
+    );
+
+--gadm3
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(varname_3, '|')) as name from gadm3 where varname_3 is not null
+    );
+
+--gadm4
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(varname_4, '|')) as name from gadm4 where varname_4 is not null
+    );
+
+/*--gadm5
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(varname_5, '|')) as name from gadm5 where varname_5 is not null
+    );
+*/
+
+
+--gadm1
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(nl_name_1, '|')) as name from gadm1 where nl_name_1 is not null
+    );
+
+--gadm2
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(nl_name_2, '|')) as name from gadm2 where nl_name_2 is not null
+    );
+
+--gadm3
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(nl_name_3, '|')) as name from gadm3 where nl_name_3 is not null
+    );
+
+/*
+--gadm4
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(nl_name_4, '|')) as name from gadm4 where nl_name_4 is not null
+    );
+*/
+
+/*
+--gadm5
+INSERT INTO gadm_alt_names
+    (uid, alt_name)
+    (
+        SELECT uid, unnest(string_to_array(nl_name_5, '|')) as name from gadm5 where nl_name_5 is not null
+    );
+*/

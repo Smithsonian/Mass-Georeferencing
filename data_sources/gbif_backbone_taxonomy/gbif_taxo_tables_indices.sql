@@ -23,3 +23,9 @@ CREATE INDEX gbif_vernacularnames_vname_idx ON gbif_vernacularnames USING BTREE(
 CREATE INDEX gbif_vernacularnames_lang_idx ON gbif_vernacularnames USING BTREE(language);
 CREATE INDEX gbif_vernacularnames_ccode_idx ON gbif_vernacularnames USING BTREE(countryCode);
 CREATE INDEX gbif_vernacularnames_source_idx ON gbif_vernacularnames USING BTREE(source);
+
+CREATE INDEX gbif_taxonomy_taxon_rank_idx ON gbif_taxonomy_taxon USING BTREE(taxonrank);
+CREATE INDEX gbif_taxonomy_taxon_canonname_idx ON gbif_taxonomy_taxon USING gin(canonicalname gin_trgm_ops);
+CREATE INDEX gbif_taxonomy_taxon_sciname_idx ON gbif_taxonomy_taxon USING gin(scientificname gin_trgm_ops);
+ALTER TABLE gbif_taxonomy_taxon ADD COLUMN uid uuid DEFAULT uuid_generate_v4();
+CREATE INDEX gbif_taxonomy_taxon_uid_idx ON gbif_taxonomy_taxon USING btree (uid);

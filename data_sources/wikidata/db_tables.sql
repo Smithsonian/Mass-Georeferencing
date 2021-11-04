@@ -4,9 +4,9 @@ CREATE TABLE wikidata_records (
 		type text, 
 		name text, 
 		latitude float, 
-		longitude float, 
-		the_geom geometry(Geometry, 4326),
-		the_geom_webmercator geometry(Geometry, 3857)
+		longitude float,
+		gadm1 text,
+		the_geom geometry(Geometry, 4326)
 		);
 
 
@@ -21,5 +21,4 @@ CREATE TABLE wikidata_descrip (
 	source_id text, 
 	language text, 
 	description text);
-
 
