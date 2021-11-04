@@ -307,6 +307,7 @@ CREATE INDEX gadm_name2_trgm_idx ON gadm USING gin (name_2 gin_trgm_ops);
 CREATE INDEX gadm_name3_trgm_idx ON gadm USING gin (name_3 gin_trgm_ops);
 CREATE INDEX gadm_name4_trgm_idx ON gadm USING gin (name_4 gin_trgm_ops);
 CREATE INDEX gadm_name5_trgm_idx ON gadm USING gin (name_5 gin_trgm_ops);
+CREATE INDEX gadm_type_trgm_idx ON gadm USING gin (type gin_trgm_ops);
 CREATE INDEX gadm_loc_trgm_idx ON gadm USING gin (located_at gin_trgm_ops);
 CREATE INDEX gadm_the_geom_idx ON gadm USING gist (the_geom);
 CREATE INDEX gadm_the_geom_s_idx ON gadm USING gist (the_geom_simp);
